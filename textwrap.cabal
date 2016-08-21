@@ -27,7 +27,8 @@ test-suite textwrap-test
   main-is:             Spec.hs
   build-depends:       base,
                        textwrap,
-                       text
+                       text,
+                       hspec
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 
