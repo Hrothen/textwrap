@@ -21,15 +21,13 @@ import qualified NeatInterpolation as Interp
 
 
 main = hspec $
-  describe "Textwrap"
+  describe "Textwrap" $ do
     wrapTests
-    {-
-     -maxLinesTests
-     -longWordTests
-     -indentTests
-     -dedentTests
-     -shortenTests
-     -}
+    maxLinesTests
+--    longWordTests
+--    indentTests
+--    dedentTests
+--    shortenTests
 
 
 testConfig :: WrapperConfig
@@ -316,8 +314,89 @@ wrapTests = describe "wrap" $ do
       testWrapLen 7 "aa \xe4\xe4-\xe4\xe4" ["aa \xe4\xe4-", "\xe4\xe4"]
 
 
+testWrapLines :: Int -> Int -> Text -> [Text] -> IO ()
+testWrapLines len lines txt expected =
+  TW.wrap testConfig{ width = len, maxLines = Just lines } txt `shouldBe` expected
+
+
 maxLinesTests :: Spec
-maxLinesTests = undefined
+maxLinesTests = describe "Max Lines" $ do
+  let text = "Hello there, how are you this fine day?  I'm glad to hear it!"
+  describe "Simple" $
+    it "truncates everything after the line maximum" $ do
+      testWrapLines 12 0 text ["Hello [...]"]
+      testWrapLines 12 1 text ["Hello [...]"]
+      testWrapLines 12 2 text ["Hello there,", "how [...]"]
+      testWrapLines 13 2 text ["Hello there,", "how are [...]"]
+      testWrapLines 80 1 text [text]
+      testWrapLines 12 6 text
+        [ "Hello there,"
+        , "how are you"
+        , "this fine"
+        , "day?  I'm"
+        , "glad to hear"
+        , "it!" ]
+
+  describe "Spaces" $ do
+    it "strips spaces before the placeholder" $
+      testWrapLines 12 4 text
+        [ "Hello there,"
+        , "how are you"
+        , "this fine"
+        , "day? [...]" ]
+
+    it "puts the placeholder at the start of the line if nothing fits" $
+      testWrapLines 6 2 text ["Hello", "[...]"]
+
+    it "doesn't use a placeholder for trailing spaces" $
+      testWrapLines 12 6 (text `T.append` T.replicate 10 " ")
+        [ "Hello there,"
+        , "how are you"
+        , "this fine"
+        , "day?  I'm"
+        , "glad to hear"
+        , "it!" ]
+
+  describe "Placeholder" $ do
+    let check w lns plc txt =
+          shouldBe (TW.wrap testConfig{ width = w, maxLines = Just lns, placeholder = plc } txt)
+    it "takes a custom placeholder" $ do
+      check 12 1 "..." text ["Hello..."]
+      check 12 2 "..." text ["Hello there,", "how are..."]
+
+    it "returns nothing when the placeholder and indentation are too long" $ do
+      -- The python library gives an error if the indent and placeholder
+      -- together are too long for it to fit
+      -- right now we just return an empty list, but that's bad
+      TW.wrap testConfig{ width = 16
+                        , maxLines = Just 1
+                        , initialIndent = "    "
+                        , placeholder = " [truncated]..."
+                        }
+        text `shouldBe` []
+      TW.wrap testConfig{ width = 16
+                        , maxLines = Just 2
+                        , subsequentIndent = "    "
+                        , placeholder = " [truncated]..."
+                        }
+        text `shouldBe` []
+        
+    it "handles long placeholders and indentation" $ do
+      TW.wrap testConfig{ width = 16
+                        , maxLines = Just 2
+                        , initialIndent = "    "
+                        , subsequentIndent = "  "
+                        , placeholder = " [truncated]..."
+                        }
+        text `shouldBe` ["    Hello there,", "  [truncated]..."]
+      TW.wrap testConfig{ width = 16
+                        , maxLines = Just 1
+                        , initialIndent = "   "
+                        , subsequentIndent = "   "
+                        , placeholder = " [truncated]..."
+                        }
+        text `shouldBe` ["  [truncated]..."]
+      TW.wrap testConfig{ width = 80, placeholder = T.replicate 1000 "." } text `shouldBe` [text]
 
 
 longWordTests :: Spec
