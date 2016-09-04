@@ -1,43 +1,336 @@
-{-
-Test suite for the textwrap module.
-
-Original tests written by Greg Ward <gward@python.net>.
-Converted to PyUnit by Peter Hansen <peter@engcorp.com>.
-Converted to Hspec by Leif Grele <lgrele@gmail.com>.
-Currently maintained by Leif Grele.
--}
-
+--------------------------------------------------------------------------------
+--
+-- Test suite for the textwrap module.
+--
+-- Original tests written by Greg Ward <gward@python.net>.
+-- Converted to PyUnit by Peter Hansen <peter@engcorp.com>.
+-- Converted to Hspec by Leif Grele <lgrele@gmail.com>.
+-- Currently maintained by Leif Grele.
+--
+--------------------------------------------------------------------------------
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Main where
 import Test.Hspec
+import Data.Text.Wrap(WrapperConfig(..))
 import qualified Data.Text.Wrap as TW
 import Data.Text(Text)
 import qualified Data.Text as T
+import qualified NeatInterpolation as Interp
 
-main = hspec $ do
-  describe "Textwrap" $ do
+
+main = hspec $
+  describe "Textwrap"
     wrapTests
-    maxLinesTests
-    longWordTests
-    indentTests
-    dedentTests
-    shortenTests
+    {-
+     -maxLinesTests
+     -longWordTests
+     -indentTests
+     -dedentTests
+     -shortenTests
+     -}
+
+
+testConfig :: WrapperConfig
+testConfig = TW.defaultConfig{ width = 45 }
+
+
+testWrapLen :: Int -> Text -> [Text] -> IO ()
+testWrapLen len text expected = TW.wrap testConfig{ width = len } text `shouldBe` expected
+
+
+multiLineString :: Text
+multiLineString = [Interp.text|\
+This is a paragraph that already has
+line breaks.  But some of its lines are much longer than the others,
+so it needs to be wrapped.
+Some lines are \ttabbed too.
+What a mess!
+|]
 
 
 wrapTests :: Spec
-wrapTests = undefined
+wrapTests = describe "wrap" $ do
+  describe "Simple" $ do
+    let text = "Hello there, how are you this fine day?  I'm glad to hear it!"
+    it "wraps to length 12" $
+      testWrapLen 12 text
+        [ "Hello there,"
+        , "how are you"
+        , "this fine"
+        , "day?  I'm"
+        , "glad to hear"
+        , "it!" ]
+
+    it "wraps to length 42" $
+      testWrapLen 42 text
+        [ "Hello there, how are you this fine day?"
+        , "I'm glad to hear it!" ]
+
+  describe "Empty String" $ do
+    it "returns an empty list when wrapping an empty string" $
+      testWrapLen 6 "" []
+
+    it "ignores whitespace settings when wrapping an empty string" $
+      TW.wrap testConfig{ width = 6, dropWhitespace = False } "" `shouldBe` []
+
+    it "doesn't indent empty strings" $ do
+      TW.wrap testConfig{ width = 6, initialIndent = "++" } "" `shouldBe` []
+      TW.wrap testConfig{ width = 6, initialIndent = "++", dropWhitespace = False } "" `shouldBe` []
+
+  describe "Whitespace" $ do
+    it "handles messed up strings" $ do
+      let multiLineList =
+            [ "This is a paragraph that already has line"
+            , "breaks.  But some of its lines are much"
+            , "longer than the others, so it needs to be"
+            , "wrapped.  Some lines are  tabbed too.  What a"
+            , "mess!" ]
+      TW.wrap testConfig{ fixSentenceEndings = True } multiLineString `shouldBe` multiLineList
+      TW.fill testConfig{ fixSentenceEndings = True } multiLineString `shouldBe`
+        T.intercalate "\n" multiLineList
+
+    it "expands tabs" $
+      testWrapLen 80 "\tTest\tdefault\t\ttabsize."
+        ["        Test    default         tabsize."]
+    it "expands tabs with custom tab size" $
+      TW.wrap testConfig{ width = 80, tabsize = 4 } "\tTest\tcustom\t\ttabsize." `shouldBe`
+        ["    Test    custom      tabsize."]
+
+  describe "Sentence Endings" $ do
+    it "adds a second space to sentence endings" $ do
+      let text = "A short line. Note the single space."
+          expect = ["A short line.  Note the single space."]
+      TW.wrap testConfig{ width = 60, fixSentenceEndings = True } text `shouldBe` expect
+    it "handles tricky endings" $ do
+      let cfg = testConfig{ width = 60, fixSentenceEndings = True }
+      TW.wrap cfg "Well, Doctor? What do you think?" `shouldBe`
+                  ["Well, Doctor?  What do you think?"]
+      TW.wrap cfg "Well, Doctor?\nWhat do you think?" `shouldBe`
+                  ["Well, Doctor?  What do you think?"]
+      TW.wrap cfg "I say, chaps! Anyone for \"tennis?\"\nHmmph!" `shouldBe`
+                  ["I say, chaps!  Anyone for \"tennis?\"  Hmmph!"]
+      TW.wrap cfg{ width = 20 } "I say, chaps! Anyone for \"tennis?\"\nHmmph!" `shouldBe`
+                                ["I say, chaps!', 'Anyone for \"tennis?\"', 'Hmmph!"]
+      TW.wrap cfg{ width = 20 } "And she said, \"Go to hell!\"\nCan you believe that?" `shouldBe`
+                                 [ "And she said, \"Go to"
+                                 , "hell!\"  Can you"
+                                 , "believe that?" ]
+      TW.wrap cfg{ width = 60 } "And she said, \"Go to hell!\"\nCan you believe that?" `shouldBe`
+                                 ["And she said, \"Go to hell!\"  Can you believe that?"]
+      TW.wrap cfg{ width = 60 } "File stdio.h is nice." `shouldBe`
+                                ["File stdio.h is nice."]
+
+  describe "Short Lines" $ do
+    it "moves endings to make lines longer" $
+      testWrapLen 20 "This is a\nshort paragraph."
+        [ "This is a short"
+        , "paragraph."]
+    it "removes endings when paragraph would fit on one line" $
+      testWrapLen 40 "This is a\nshort paragraph." ["This is a short paragraph."]
+
+    it "adds prefixes" $ do
+      let text = "This is a short line."
+      testWrapLen 30 text [text]
+      TW.wrap testConfig{ width = 30, initialIndent = "(1) " } text `shouldBe`
+        ["(1) This is a short line."]
+
+  describe "Hypenated Lines" $ do
+    let text = "this-is-a-useful-feature-for-reformatting-posts-from-tim-peters'ly"
+    it "wraps with hyphens" $ do
+      testWrapLen  40 text
+        [ "this-is-a-useful-feature-for-"
+        , "reformatting-posts-from-tim-peters'ly" ]
+      testWrapLen 41 text
+        [ "this-is-a-useful-feature-for-"
+        , "reformatting-posts-from-tim-peters'ly" ]
+      testWrapLen 42 text
+        [ "this-is-a-useful-feature-for-reformatting-"
+        , "posts-from-tim-peters'ly" ]
+
+    it "keeps hyphens when words are longer than width" $ do
+      let expect = T.splitOn "|" "this-|is-|a-|useful-|feature-|for-|reformatting-|posts-|from-|tim-|peters'ly"
+      TW.wrap testConfig{ width = 1, breakLongWords = False } text `shouldBe` expect
+
+    it "doesn't split hyphenated numbers" $ do
+      let text = "Python 1.0.0 was released on 1994-01-26.  Python 1.0.1 was\nreleased on 1994-02-15."
+      testWrapLen 30 text
+        [ "Python 1.0.0 was released on"
+        , "1994-01-26.  Python 1.0.1 was"
+        , "released on 1994-02-15." ]
+      testWrapLen 40 text
+        [ "Python 1.0.0 was released on 1994-01-26."
+        , "Python 1.0.1 was released on 1994-02-15." ]
+      TW.wrap testConfig{ width = 1, breakLongWords = False } text `shouldBe` T.words text
+      let shopping = "I do all my shopping at 7-11."
+      testWrapLen 25 shopping
+        [ "I do all my shopping at"
+        , "7-11." ]
+      testWrapLen 27 shopping
+        [ "I do all my shopping at"
+        , "7-11." ]
+      testWrapLen 29 shopping [shopping]
+      TW.wrap testConfig{ width = 1, breakLongWords = False } shopping `shouldBe` T.words shopping
+
+  describe "Em-dashes" $ do
+    let text = "Em-dashes should be written -- thus."
+    it "handles text with em-dashes" $
+      testWrapLen 25 text
+        [ "Em-dashes should be"
+        , "written -- thus." ]
+    it "handles edge-cases" $ do
+      testWrapLen 29 text
+        [ "Em-dashes should be written"
+        , "-- thus." ]
+      testWrapLen 30 text
+        [ "Em-dashes should be written --"
+        , "thus." ]
+      testWrapLen 35 text
+        [ "Em-dashes should be written --"
+        , "thus." ]
+      testWrapLen 36 text [text]
+    it "treats bad em-dashes correctly" $ do
+      let badDash = "You can also do--this or even---this."
+
+      testWrapLen 15 badDash
+        [ "You can also do"
+        , "--this or even"
+        , "---this." ]
+      testWrapLen 16 badDash
+        [ "You can also do"
+        , "--this or even"
+        , "---this." ]
+      
+      testWrapLen 17 badDash
+        [ "You can also do--"
+        , "this or even---"
+        , "this." ]
+      testWrapLen 19 badDash
+        [ "You can also do--"
+        , "this or even---"
+        , "this." ]
+
+      testWrapLen 29 badDash
+        [ "You can also do--this or even"
+        , "---this." ]
+      testWrapLen 31 badDash
+        [ "You can also do--this or even"
+        , "---this." ]
+
+      testWrapLen 32 badDash
+        [ "You can also do--this or even---"
+        , "this." ]
+      testWrapLen 35 badDash
+        [ "You can also do--this or even---"
+        , "this." ]
+
+  describe "Unix Options" $
+    it "wraps unix command line flags correctly" $ do
+      let text = "You should use the -n option, or --dry-run in its long form."
+
+      testWrapLen 20 text
+        [ "You should use the"
+        , "-n option, or --dry-"
+        , "run in its long"
+        , "form." ]
+      testWrapLen 21 text
+        [ "You should use the -n"
+        , "option, or --dry-run"
+        , "in its long form." ]
+
+      let expect = ["You should use the -n option, or", "--dry-run in its long form."]
+
+      testWrapLen 32 text expect
+      testWrapLen 34 text expect
+      testWrapLen 35 text expect
+      testWrapLen 38 text expect
+
+      testWrapLen 39 text
+        [ "You should use the -n option, or --dry-"
+        , "run in its long form." ]
+      testWrapLen 41 text
+        [ "You should use the -n option, or --dry-"
+        , "run in its long form." ]
+
+      testWrapLen 42 text
+        [ "You should use the -n option, or --dry-run"
+        , "in its long form." ]
+
+  describe "Drop Whitespace" $ do
+    let cfg = testConfig{ dropWhitespace = False }
+    it "preserves whitespace when told to" $
+      TW.wrap cfg{ width = 10 } " This is a    sentence with     much whitespace." `shouldBe`
+        [ " This is a"
+        , "    "
+        , "sentence "
+        , "with     "
+        , "much white"
+        , "space." ]
+    it "preserves whitespace only strings when told to" $
+      TW.wrap cfg{ width = 6 } "   " `shouldBe` ["   "]
+    it "indents whitespace only strings" $
+      TW.wrap cfg{ width = 6, initialIndent = "   " } "  " `shouldBe` ["     "]
+    it "drops all whitespace in whitespace-only strings" $
+      testWrapLen 6 "  " []
+
+    it "preserves leading whitespace" $ do
+      let text = " This is a sentence with leading whitespace."
+      testWrapLen 50 text [text]
+      testWrapLen 30 text [" This is a sentence with", "leading whitespace."]
+
+    it "removes empty lines" $ do
+      let text = "abcd    efgh"
+      TW.wrap cfg{ width = 6 } text `shouldBe` ["abcd", "    ", "efgh"]
+      testWrapLen 6 text ["abcd", "efgh"]
+
+    it "doesn't add initial indent if dropping whitespace" $
+      TW.wrap testConfig{ width = 6, initialIndent = "++" } "  " `shouldBe` []
+
+    it "doesn't drop whitespace indents" $
+      TW.wrap testConfig{ width = 6, initialIndent = "  ", subsequentIndent = "  " } "abcd efgh" `shouldBe`
+        ["  abcd", "  efgh"]
+
+  describe "Break On Hyphens" $
+    it "respects breakOnHyphens" $ do
+      let text = "yaba daba-doo"
+      let cfg = testConfig{ width = 10 }
+      TW.wrap cfg{ breakOnHyphens = True  } text `shouldBe` ["yaba daba-", "doo"]
+      TW.wrap cfg text `shouldBe` ["yaba", "daba-doo"]
+
+  -- Right now the design is to return an empty list when width is <= 0
+  -- It might be better to have wrap return a Maybe, or initilize the config
+  -- object with a function to validate inputs
+  describe "Bad Width" $
+    it "returns an empty list for invalid width values" $ do
+      let text = "Whatever, it doesn't matter"
+      testWrapLen 0 text []
+      testWrapLen (-1) text []
+
+  describe "Umlauts" $ do
+    it "doesn't split on umlauts" $
+      testWrapLen 13 "Die Empf\xe4nger-Auswahl"
+        ["Die", "Empf\xe4nger-", "Auswahl"]
+
+    it "handles umlauts next to dashes" $
+      testWrapLen 7 "aa \xe4\xe4-\xe4\xe4" ["aa \xe4\xe4-", "\xe4\xe4"]
+
 
 maxLinesTests :: Spec
 maxLinesTests = undefined
 
+
 longWordTests :: Spec
 longWordTests = undefined
+
 
 indentTests :: Spec
 indentTests = undefined
 
+
 dedentTests :: Spec
 dedentTests = undefined
+
 
 shortenTests :: Spec
 shortenTests = undefined
