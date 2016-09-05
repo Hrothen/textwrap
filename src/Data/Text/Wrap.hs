@@ -57,6 +57,6 @@ dedent :: Text -> Text
 dedent = undefined
 
 -- |Add 'prefix' to all lines matching the given predicate
-indent :: (Text -> Bool) -> Text -> Text -> Text
+indent :: Maybe (Text -> Bool) -> Text -> Text -> Text
 indent pred prefix = undefined
 
