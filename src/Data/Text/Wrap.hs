@@ -53,7 +53,7 @@ shorten :: WrapperConfig -> Text -> Text
 shorten = undefined
 
 -- |Remove common leading whitespace from all lines
-dedent :: WrapperConfig -> Text -> Text
+dedent :: Text -> Text
 dedent = undefined
 
 -- |Add 'prefix' to all lines matching the given predicate
