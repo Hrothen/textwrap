@@ -24,10 +24,10 @@ main = hspec $
   describe "Textwrap" $ do
     wrapTests
     maxLinesTests
---    longWordTests
---    indentTests
---    dedentTests
---    shortenTests
+    longWordTests
+   -- indentTests
+   -- dedentTests
+   -- shortenTests
 
 
 testConfig :: WrapperConfig
@@ -400,7 +400,59 @@ maxLinesTests = describe "Max Lines" $ do
 
 
 longWordTests :: Spec
-longWordTests = undefined
+longWordTests = describe "Long Words" $ do
+  let text = [Interp.text|\
+Did you say "supercalifragilisticexpialidocious?"
+How *do* you spell that odd word, anyways?
+|]
+  it "breaks up long words" $ do
+    testWrapLen 30 text
+      [ "Did you say \"supercalifragilis"
+      , "ticexpialidocious?\" How *do*"
+      , "you spell that odd word,"
+      , "anyways?" ]
+    testWrapLen 50 text
+      [ "Did you say \"supercalifragilisticexpialidocious?\""
+      , "How *do* you spell that odd word, anyways?" ]
+
+  it "always breaks *something* off" $
+    TW.wrap testConfig{ width = 10, subsequentIndent = T.replicate 15 " " }
+      (T.replicate 10 "-" `T.append` "hello") `shouldBe`
+        [ "----------"
+        , "               h"
+        , "               e"
+        , "               l"
+        , "               l"
+        , "               o" ]
+
+  -- Prevent a long word to be wrongly wrapped when the
+  -- preceding word is exactly one character shorter than the width
+  it "handles edge cases" $
+    testWrapLen 12 text
+      [ "Did you say "
+      , "\"supercalifr"
+      , "agilisticexp"
+      , "ialidocious?"
+      , "\" How *do*"
+      , "you spell"
+      , "that odd"
+      , "word,"
+      , "anyways?" ]
+
+  it "doesn't break long words if told not to" $ do
+    let cfg = testConfig{ width = 30, breakLongWords = False }
+    TW.wrap cfg text `shouldBe`
+      [ "Did you say"
+      , "\"supercalifragilisticexpialidocious?\""
+      , "How *do* you spell that odd"
+      , "word, anyways?" ]
+
+  it "truncates long words if they go over the max lines" $
+    testWrapLines 30 4 text
+      [ "Did you say "
+      , "\"supercalifr"
+      , "agilisticexp"
+      , "[...]" ]
 
 
 indentTests :: Spec
