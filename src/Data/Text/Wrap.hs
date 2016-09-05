@@ -44,19 +44,33 @@ defaultConfig = WrapperConfig { width = 70
 wrap :: WrapperConfig -> Text -> [Text]
 wrap = undefined
 
+
 -- | Like wrap, but concatinates lines and adds newlines
 fill :: WrapperConfig -> Text -> Text
 fill = undefined
+
 
 -- | Truncates input to no more than 'width' characters
 shorten :: WrapperConfig -> Text -> Text
 shorten = undefined
 
+
 -- | Remove common leading whitespace from all lines
 dedent :: Text -> Text
-dedent = undefined
+dedent text = undefined
+
+
+-- | Remove common leading whitespace from all lines
+-- | Finds line breaks based on the given locale
+dedentLocale :: LocaleName -> Text -> Text
+dedentLocale locale text = undefined
+
 
 -- | Add 'prefix' to all lines matching the given predicate
 indent :: Maybe (Text -> Bool) -> Text -> Text -> Text
-indent pred prefix = undefined
+indent pred prefix text = undefined
 
+-- | Add 'prefix' to all lines matching the given predicate
+-- | Finds line breaks based on the given locale
+indentWithLocale :: LocaleName -> Maybe (Text -> Bool) -> Text -> Text -> Text
+indentWithLocale local pred prefix text = undefined
