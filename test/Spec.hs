@@ -25,7 +25,7 @@ main = hspec $
     wrapTests
     maxLinesTests
     longWordTests
-   -- indentTests
+    indentTests
    -- dedentTests
    -- shortenTests
 
@@ -456,7 +456,38 @@ How *do* you spell that odd word, anyways?
 
 
 indentTests :: Spec
-indentTests = undefined
+indentTests = describe "Indenting" $
+  describe "Fill" $ do
+    let text =[Interp.text|\
+This paragraph will be filled, first without any indentation,
+and then with some (including a hanging indent).|]
+    it "fills with no indentation" $
+      TW.fill testConfig{ width = 40 } text `shouldBe`
+        [Interp.text|\
+This paragraph will be filled, first
+without any indentation, and then with
+some (including a hanging indent).|]
+
+    it "fills with an initial indent" $ do
+      let expect =
+            [ "     This paragraph will be filled,"
+            , "first without any indentation, and then"
+            , "with some (including a hanging indent)." ]
+          cfg = testConfig{ width = 40, initialIndent = "     " }
+      TW.wrap cfg text `shouldBe` expect
+      TW.fill cfg text `shouldBe` T.intercalate "\n" expect
+
+    it "fills with a subsequent indent" $ do
+      let cfg = testConfig{ width = 40
+                          , initialIndent = "  * "
+                          , subsequentIndent = "    "
+                          }
+      TW.fill cfg text `shouldBe`
+        [Interp.text|\
+  * This paragraph will be filled, first
+    without any indentation, and then
+    with some (including a hanging
+    indent).|]
 
 
 dedentTests :: Spec
