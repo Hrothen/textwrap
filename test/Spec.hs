@@ -26,7 +26,7 @@ main = hspec $
     maxLinesTests
     longWordTests
     indentTests
-   -- dedentTests
+    dedentTests
    -- shortenTests
 
 
@@ -491,7 +491,86 @@ some (including a hanging indent).|]
 
 
 dedentTests :: Spec
-dedentTests = undefined
+dedentTests = describe "Dedent" $ do
+  let testUnchanged txt = txt `shouldBe` TW.dedent txt
+  describe "No Margin" $ do
+
+    it "doesn't do anything with no lines indented" $
+      testUnchanged "Hello there.\nHow are you?\nOh good, I'm glad."
+
+    it "ignores blank lines" $
+      testUnchanged "Hello there.\n\nBoo!"
+
+    it "preserves indentation level on subsequent lines" $ do
+      testUnchanged "Hello there.\n  This is indented."
+      testUnchanged "Hello there.\n\n  Boo!\n"
+
+  describe "Same Indentation Level" $ do
+
+    it "dedents all lines evenly" $
+      TW.dedent "  Hello there.\n  How are ya?\n  Oh good." `shouldBe`
+        "Hello there.\nHow are ya?\nOh good."
+
+    it "dedents all lines evenly ignoring blank lines" $
+      TW.dedent "  Hello there.\n\n  How are ya?\n  Oh good.\n" `shouldBe`
+        "Hello there.\n\nHow are ya?\nOh good.\n"
+
+    it "doesn't ignore indentation on otherwise blank lines" $
+      TW.dedent "  Hello there.\n  \n  How are ya?\n  Oh good.\n" `shouldBe`
+        "Hello there.\n\nHow are ya?\nOh good.\n"
+
+  describe "Uneven Indentation Levels" $ do
+
+    it "preserves relative indentation" $ do
+      -- These strings might not go through the QQ correctly
+      let text = [Interp.text|\
+        def foo():
+            while 1:
+                return foo
+        |]
+          expect = [Interp.text|\
+def foo():
+    while 1:
+        return foo
+|]
+      TW.dedent text `shouldBe` expect
+
+    it "ignores blank lines" $
+      TW.dedent "  Foo\n    Bar\n\n   Baz\n" `shouldBe`
+        "Foo\n  Bar\n\n Baz\n"
+
+    it "doesn't ignore whitespace on otherwise blank lines" $
+      TW.dedent "  Foo\n    Bar\n \n   Baz\n" `shouldBe`
+        "Foo\n  Bar\n\n Baz\n"
+
+  describe "Tabs" $ do
+
+    it "preserves internal tabs when making changes" $
+      TW.dedent "  hello\tthere\n  how are\tyou?" `shouldBe`
+        "hello\tthere\nhow are\tyou?"
+
+    it "preserves internal tabs when not making changes" $
+      TW.dedent "hello\tthere\nhow are\tyou?" `shouldBe`
+        "hello\tthere\nhow are\tyou?"
+
+    it "doesn't mangle tabs in the margin" $
+      testUnchanged "  hello there\n\thow are you?"
+
+    it "doesn't equate 8 spaces with a tab" $
+      testUnchanged "        hello there\n\thow are you?"
+
+    it "only removes whitespace if it can do so uniformly" $ do
+      let expect = "hello there\nhow are you?"
+
+      TW.dedent "\thello there\n\thow are you?" `shouldBe` expect
+      TW.dedent "  \thello there\n  \thow are you?" `shouldBe` expect
+      TW.dedent "  \t  hello there\n  \t  how are you?" `shouldBe` expect
+      TW.dedent "  \thello there\n  \t  how are you?" `shouldBe`
+        "hello there\n  how are you?"
+
+    it "can have a margin smaller than the smallest indent" $
+      TW.dedent "  \thello there\n   \thow are you?\n \tI'm fine, thanks" `shouldBe`
+        " \thello there\n  \thow are you?\n\tI'm fine, thanks"
 
 
 shortenTests :: Spec
