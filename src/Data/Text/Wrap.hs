@@ -5,7 +5,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.ICU.Types
 
--- |A collection of config information
+-- | A collection of config information
 data WrapperConfig = 
   WrapperConfig { width              :: Int -- ^ Maximum length of a wrapped line
                 , expandTabs         :: Bool -- ^ If true, all tabs will be replaced with spaces
@@ -22,7 +22,7 @@ data WrapperConfig =
                 , locale             :: LocaleName -- ^ Locale of the text, defaults to current locale
                 }
 
--- |Default config settings
+-- | Default config settings
 defaultConfig :: WrapperConfig
 defaultConfig = WrapperConfig { width = 70
                               , expandTabs = True
@@ -39,24 +39,24 @@ defaultConfig = WrapperConfig { width = 70
                               , locale = Current
                               }
 
--- |Wraps the input text, returning a list of lines no more than 'width'
--- |characters long
+-- | Wraps the input text, returning a list of lines no more than 'width'
+-- | characters long
 wrap :: WrapperConfig -> Text -> [Text]
 wrap = undefined
 
--- |Like wrap, but concatinates lines and adds newlines
+-- | Like wrap, but concatinates lines and adds newlines
 fill :: WrapperConfig -> Text -> Text
 fill = undefined
 
--- |Truncates input to no more than 'width' characters
+-- | Truncates input to no more than 'width' characters
 shorten :: WrapperConfig -> Text -> Text
 shorten = undefined
 
--- |Remove common leading whitespace from all lines
+-- | Remove common leading whitespace from all lines
 dedent :: Text -> Text
 dedent = undefined
 
--- |Add 'prefix' to all lines matching the given predicate
+-- | Add 'prefix' to all lines matching the given predicate
 indent :: Maybe (Text -> Bool) -> Text -> Text -> Text
 indent pred prefix = undefined
 
