@@ -201,7 +201,7 @@ wrapTests = describe "wrap" $ do
         [ "You can also do"
         , "--this or even"
         , "---this." ]
-      
+
       testWrapLen 17 badDash
         [ "You can also do--"
         , "this or even---"
@@ -382,7 +382,7 @@ maxLinesTests = describe "Max Lines" $ do
                         , placeholder = " [truncated]..."
                         }
         text `shouldBe` []
-        
+
     it "handles long placeholders and indentation" $ do
       TW.wrap testConfig{ width = 16
                         , maxLines = Just 2
