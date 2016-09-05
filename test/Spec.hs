@@ -29,7 +29,7 @@ main = hspec $
     indentTests
     dedentTests
     indentTestCases
-  -- shortenTests
+    shortenTests
 
 
 testConfig :: WrapperConfig
@@ -627,5 +627,59 @@ indentTestCases = describe "Indent" $ do
     zipWithM_ shouldBe (indentCases (Just (T.null . T.strip)) "  ") expected
 
 
+checkShorten :: Int -> Maybe Text -> Text -> Text -> IO ()
+checkShorten width placeholder text expect =
+  TW.shorten cfg text `shouldBe` expect
+    where cfg = case placeholder of
+                  Just p  -> testConfig{ width = width, placeholder = p }
+                  Nothing -> testConfig{ width = width }
+
 shortenTests :: Spec
-shortenTests = undefined
+shortenTests = describe "Shorten" $ do
+  it "shortens simple lines" $ do
+    let text = "Hello there, how are you this fine day? I'm glad to hear it!"
+
+    checkShorten 18 Nothing text "Hello there, [...]"
+    checkShorten (T.length text) Nothing text text
+    checkShorten (T.length text - 1) Nothing text
+      "Hello there, how are you this fine day? I'm glad to [...]"
+
+  it "uses a placeholder" $ do
+    let text = "Hello there, how are you this fine day? I'm glad to hear it!"
+        plh  = Just "$$"
+
+    checkShorten 17 plh text "Hello there,$$"
+    checkShorten 18 plh text "Hello there, how$$"
+    checkShorten 18 (Just " $$") text "Hello there, $$"
+    checkShorten (T.length text) plh text text
+    checkShorten (T.length text - 1) plh text
+      "Hello there, how are you this fine day? I'm glad to hear$$"
+
+  it "doesn't do anything to an empty sring" $
+    checkShorten 6 Nothing "" ""
+
+  describe "Whitespace Collapsing" $ do
+    let text = [Interp.text|
+            This is a  paragraph that  already has
+            line breaks and \t tabs too.|]
+
+    it "collapses multiline strings" $ do
+
+      checkShorten 62 Nothing text
+        "This is a paragraph that already has line breaks and tabs too."
+      checkShorten 61 Nothing text
+        "This is a paragraph that already has line breaks and [...]"
+
+    it "removes inner padding" $ do
+      checkShorten 12 Nothing "hello      world!  " "hello world!"
+      checkShorten 11 Nothing "hello      world!  " "hello [...]"
+
+    it "removes the leading space from the placeholder when it's on its own line" $
+      checkShorten 10 Nothing "hello      world!  " "[...]"
+
+  -- This should probably return an error type
+  it "returns nothing when width is too small for the placeholder" $
+    checkShorten 8 (Just "(.......)") (T.replicate 20 "x") ""
+
+  it "replaces the first word with the placeholder if it's too long" $
+    checkShorten 5 Nothing "Helloo" "[...]"
