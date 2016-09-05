@@ -12,6 +12,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 module Main where
+import Control.Monad(zipWithM_)
 import Test.Hspec
 import Data.Text.Wrap(WrapperConfig(..))
 import qualified Data.Text.Wrap as TW
@@ -27,7 +28,8 @@ main = hspec $
     longWordTests
     indentTests
     dedentTests
-   -- shortenTests
+    indentTestCases
+  -- shortenTests
 
 
 testConfig :: WrapperConfig
@@ -571,6 +573,58 @@ def foo():
     it "can have a margin smaller than the smallest indent" $
       TW.dedent "  \thello there\n   \thow are you?\n \tI'm fine, thanks" `shouldBe`
         " \thello there\n  \thow are you?\n\tI'm fine, thanks"
+
+
+-- Unlike indentTests above, this actually tests the indent function
+indentTestCases :: Spec
+indentTestCases = describe "Indent" $ do
+  let roundtripCases = [ "Hi.\nThis is a test.\nTesting."
+                       , "Hi.\nThis is a test.\n\nTesting."
+                       , "\nHi.\nThis is a test.\nTesting.\n" ]
+      cases = roundtripCases ++ [ "Hi.\r\nThis is a test.\r\nTesting.\r\n"
+                                , "\nHi.\r\nThis is a test.\n\r\nTesting.\r\n\n" ]
+
+  it "does nothing if the prefix is empty" $
+    mapM_ (\s -> TW.indent Nothing "" s `shouldBe` s) cases
+
+  it "does nothing with an empty prefix and trivial predicate" $
+    mapM_ (\s -> TW.indent (Just $ const True) "" s `shouldBe` s) cases
+
+  it "skips lines if told to" $
+    mapM_ (\s -> TW.indent (Just $ const False) "    " s `shouldBe` s) cases
+
+  it "roundtrips with dedent when using a whitespace prefix" $
+    mapM_ (\s -> TW.dedent (TW.indent Nothing "    " s) `shouldBe` s) cases
+  it "roundtrips with dedent when using a tab prefix" $
+    mapM_ (\s -> TW.dedent (TW.indent Nothing "\t\t" s) `shouldBe` s) cases
+  it "roundtrips with dedent when using a mixed whitespace prefix" $
+    mapM_ (\s -> TW.dedent (TW.indent Nothing " \t \t " s) `shouldBe` s) cases
+
+  let indentCases pred pfx = map (TW.indent pred pfx) cases
+
+  it "indents lines with non-whitespace characters correctly" $ do
+    let expected = [ "  Hi.\n  This is a test.\n  Testing."
+                   , "  Hi.\n  This is a test.\n\n  Testing."
+                   , "\n  Hi.\n  This is a test.\n  Testing.\n"
+                   , "  Hi.\r\n  This is a test.\r\n  Testing.\r\n"
+                   , "\n  Hi.\r\n  This is a test.\n\r\n  Testing.\r\n\n" ]
+    zipWithM_ shouldBe (indentCases Nothing " ") expected
+
+  it "adds a prefix to all lines when told to" $ do
+    let expected = [ "  Hi.\n  This is a test.\n  Testing."
+                   , "  Hi.\n  This is a test.\n  \n  Testing."
+                   , "  \n  Hi.\n  This is a test.\n  Testing.\n"
+                   , "  Hi.\r\n  This is a test.\r\n  Testing.\r\n"
+                   , "  \n  Hi.\r\n  This is a test.\n  \r\n  Testing.\r\n  \n" ]
+    zipWithM_ shouldBe (indentCases (Just $ const True) "  ") expected
+
+  it "adds prefix to whitespace only lines" $ do
+    let expected = [ "Hi.\nThis is a test.\nTesting."
+                   , "Hi.\nThis is a test.\n  \nTesting."
+                   , "  \nHi.\nThis is a test.\nTesting.\n"
+                   , "Hi.\r\nThis is a test.\r\nTesting.\r\n"
+                   , "  \nHi.\r\nThis is a test.\n  \r\nTesting.\r\n  \n" ]
+    zipWithM_ shouldBe (indentCases (Just (T.null . T.strip)) "  ") expected
 
 
 shortenTests :: Spec
