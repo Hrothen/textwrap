@@ -35,9 +35,11 @@ main = hspec $
 testConfig :: WrapperConfig
 testConfig = TW.defaultConfig{ width = 45 }
 
+testWrap cfg txt expected = TW.wrap cfg txt `shouldBe` Right expected
+
 
 testWrapLen :: Int -> Text -> [Text] -> IO ()
-testWrapLen len text expected = TW.wrap testConfig{ width = len } text `shouldBe` expected
+testWrapLen len = testWrap testConfig{ width = len }
 
 
 multiLineString :: Text
@@ -73,11 +75,11 @@ wrapTests = describe "wrap" $ do
       testWrapLen 6 "" []
 
     it "ignores whitespace settings when wrapping an empty string" $
-      TW.wrap testConfig{ width = 6, dropWhitespace = False } "" `shouldBe` []
+      testWrap testConfig{ width = 6, dropWhitespace = False } "" []
 
     it "doesn't indent empty strings" $ do
-      TW.wrap testConfig{ width = 6, initialIndent = "++" } "" `shouldBe` []
-      TW.wrap testConfig{ width = 6, initialIndent = "++", dropWhitespace = False } "" `shouldBe` []
+      testWrap testConfig{ width = 6, initialIndent = "++" } ""  []
+      testWrap testConfig{ width = 6, initialIndent = "++", dropWhitespace = False } "" []
 
   describe "Whitespace" $ do
     it "handles messed up strings" $ do
@@ -87,39 +89,39 @@ wrapTests = describe "wrap" $ do
             , "longer than the others, so it needs to be"
             , "wrapped.  Some lines are  tabbed too.  What a"
             , "mess!" ]
-      TW.wrap testConfig{ fixSentenceEndings = True } multiLineString `shouldBe` multiLineList
+      testWrap testConfig{ fixSentenceEndings = True } multiLineString  multiLineList
       TW.fill testConfig{ fixSentenceEndings = True } multiLineString `shouldBe`
-        T.intercalate "\n" multiLineList
+        Right (T.intercalate "\n" multiLineList)
 
     it "expands tabs" $
       testWrapLen 80 "\tTest\tdefault\t\ttabsize."
         ["        Test    default         tabsize."]
     it "expands tabs with custom tab size" $
-      TW.wrap testConfig{ width = 80, tabsize = 4 } "\tTest\tcustom\t\ttabsize." `shouldBe`
+      testWrap testConfig{ width = 80, tabsize = 4 } "\tTest\tcustom\t\ttabsize."
         ["    Test    custom      tabsize."]
 
   describe "Sentence Endings" $ do
     it "adds a second space to sentence endings" $ do
       let text = "A short line. Note the single space."
           expect = ["A short line.  Note the single space."]
-      TW.wrap testConfig{ width = 60, fixSentenceEndings = True } text `shouldBe` expect
+      testWrap testConfig{ width = 60, fixSentenceEndings = True } text expect
     it "handles tricky endings" $ do
       let cfg = testConfig{ width = 60, fixSentenceEndings = True }
-      TW.wrap cfg "Well, Doctor? What do you think?" `shouldBe`
+      testWrap cfg "Well, Doctor? What do you think?"
                   ["Well, Doctor?  What do you think?"]
-      TW.wrap cfg "Well, Doctor?\nWhat do you think?" `shouldBe`
+      testWrap cfg "Well, Doctor?\nWhat do you think?"
                   ["Well, Doctor?  What do you think?"]
-      TW.wrap cfg "I say, chaps! Anyone for \"tennis?\"\nHmmph!" `shouldBe`
+      testWrap cfg "I say, chaps! Anyone for \"tennis?\"\nHmmph!"
                   ["I say, chaps!  Anyone for \"tennis?\"  Hmmph!"]
-      TW.wrap cfg{ width = 20 } "I say, chaps! Anyone for \"tennis?\"\nHmmph!" `shouldBe`
+      testWrap cfg{ width = 20 } "I say, chaps! Anyone for \"tennis?\"\nHmmph!"
                                 ["I say, chaps!', 'Anyone for \"tennis?\"', 'Hmmph!"]
-      TW.wrap cfg{ width = 20 } "And she said, \"Go to hell!\"\nCan you believe that?" `shouldBe`
+      testWrap cfg{ width = 20 } "And she said, \"Go to hell!\"\nCan you believe that?"
                                  [ "And she said, \"Go to"
                                  , "hell!\"  Can you"
                                  , "believe that?" ]
-      TW.wrap cfg{ width = 60 } "And she said, \"Go to hell!\"\nCan you believe that?" `shouldBe`
+      testWrap cfg{ width = 60 } "And she said, \"Go to hell!\"\nCan you believe that?"
                                  ["And she said, \"Go to hell!\"  Can you believe that?"]
-      TW.wrap cfg{ width = 60 } "File stdio.h is nice." `shouldBe`
+      testWrap cfg{ width = 60 } "File stdio.h is nice."
                                 ["File stdio.h is nice."]
 
   describe "Short Lines" $ do
@@ -133,7 +135,7 @@ wrapTests = describe "wrap" $ do
     it "adds prefixes" $ do
       let text = "This is a short line."
       testWrapLen 30 text [text]
-      TW.wrap testConfig{ width = 30, initialIndent = "(1) " } text `shouldBe`
+      testWrap testConfig{ width = 30, initialIndent = "(1) " } text
         ["(1) This is a short line."]
 
   describe "Hypenated Lines" $ do
@@ -151,7 +153,7 @@ wrapTests = describe "wrap" $ do
 
     it "keeps hyphens when words are longer than width" $ do
       let expect = T.splitOn "|" "this-|is-|a-|useful-|feature-|for-|reformatting-|posts-|from-|tim-|peters'ly"
-      TW.wrap testConfig{ width = 1, breakLongWords = False } text `shouldBe` expect
+      testWrap testConfig{ width = 1, breakLongWords = False } text expect
 
     it "doesn't split hyphenated numbers" $ do
       let text = "Python 1.0.0 was released on 1994-01-26.  Python 1.0.1 was\nreleased on 1994-02-15."
@@ -162,7 +164,7 @@ wrapTests = describe "wrap" $ do
       testWrapLen 40 text
         [ "Python 1.0.0 was released on 1994-01-26."
         , "Python 1.0.1 was released on 1994-02-15." ]
-      TW.wrap testConfig{ width = 1, breakLongWords = False } text `shouldBe` T.words text
+      testWrap testConfig{ width = 1, breakLongWords = False } text (T.words text)
       let shopping = "I do all my shopping at 7-11."
       testWrapLen 25 shopping
         [ "I do all my shopping at"
@@ -171,7 +173,7 @@ wrapTests = describe "wrap" $ do
         [ "I do all my shopping at"
         , "7-11." ]
       testWrapLen 29 shopping [shopping]
-      TW.wrap testConfig{ width = 1, breakLongWords = False } shopping `shouldBe` T.words shopping
+      testWrap testConfig{ width = 1, breakLongWords = False } shopping (T.words shopping)
 
   describe "Em-dashes" $ do
     let text = "Em-dashes should be written -- thus."
@@ -260,7 +262,7 @@ wrapTests = describe "wrap" $ do
   describe "Drop Whitespace" $ do
     let cfg = testConfig{ dropWhitespace = False }
     it "preserves whitespace when told to" $
-      TW.wrap cfg{ width = 10 } " This is a    sentence with     much whitespace." `shouldBe`
+      testWrap cfg{ width = 10 } " This is a    sentence with     much whitespace."
         [ " This is a"
         , "    "
         , "sentence "
@@ -268,9 +270,9 @@ wrapTests = describe "wrap" $ do
         , "much white"
         , "space." ]
     it "preserves whitespace only strings when told to" $
-      TW.wrap cfg{ width = 6 } "   " `shouldBe` ["   "]
+      testWrap cfg{ width = 6 } "   " ["   "]
     it "indents whitespace only strings" $
-      TW.wrap cfg{ width = 6, initialIndent = "   " } "  " `shouldBe` ["     "]
+      testWrap cfg{ width = 6, initialIndent = "   " } "  " ["     "]
     it "drops all whitespace in whitespace-only strings" $
       testWrapLen 6 "  " []
 
@@ -281,31 +283,28 @@ wrapTests = describe "wrap" $ do
 
     it "removes empty lines" $ do
       let text = "abcd    efgh"
-      TW.wrap cfg{ width = 6 } text `shouldBe` ["abcd", "    ", "efgh"]
+      testWrap cfg{ width = 6 } text ["abcd", "    ", "efgh"]
       testWrapLen 6 text ["abcd", "efgh"]
 
     it "doesn't add initial indent if dropping whitespace" $
-      TW.wrap testConfig{ width = 6, initialIndent = "++" } "  " `shouldBe` []
+      testWrap testConfig{ width = 6, initialIndent = "++" } "  " []
 
     it "doesn't drop whitespace indents" $
-      TW.wrap testConfig{ width = 6, initialIndent = "  ", subsequentIndent = "  " } "abcd efgh" `shouldBe`
+      testWrap testConfig{ width = 6, initialIndent = "  ", subsequentIndent = "  " } "abcd efgh"
         ["  abcd", "  efgh"]
 
   describe "Break On Hyphens" $
     it "respects breakOnHyphens" $ do
       let text = "yaba daba-doo"
       let cfg = testConfig{ width = 10 }
-      TW.wrap cfg{ breakOnHyphens = True  } text `shouldBe` ["yaba daba-", "doo"]
-      TW.wrap cfg text `shouldBe` ["yaba", "daba-doo"]
+      testWrap cfg{ breakOnHyphens = True  } text ["yaba daba-", "doo"]
+      testWrap cfg text ["yaba", "daba-doo"]
 
-  -- Right now the design is to return an empty list when width is <= 0
-  -- It might be better to have wrap return a Maybe, or initilize the config
-  -- object with a function to validate inputs
   describe "Bad Width" $
-    it "returns an empty list for invalid width values" $ do
+    it "returns an error for invalid width values" $ do
       let text = "Whatever, it doesn't matter"
-      testWrapLen 0 text []
-      testWrapLen (-1) text []
+      TW.wrap testConfig{ width = 0 } text `shouldBe` Left TW.InvalidWidth
+      TW.wrap testConfig{ width = -1 } text `shouldBe` Left TW.InvalidWidth
 
   describe "Umlauts" $ do
     it "doesn't split on umlauts" $
@@ -317,8 +316,8 @@ wrapTests = describe "wrap" $ do
 
 
 testWrapLines :: Int -> Int -> Text -> [Text] -> IO ()
-testWrapLines len lines txt expected =
-  TW.wrap testConfig{ width = len, maxLines = Just lines } txt `shouldBe` expected
+testWrapLines len lines =
+  testWrap testConfig{ width = len, maxLines = Just lines }
 
 
 maxLinesTests :: Spec
@@ -360,45 +359,42 @@ maxLinesTests = describe "Max Lines" $ do
         , "it!" ]
 
   describe "Placeholder" $ do
-    let check w lns plc txt =
-          shouldBe (TW.wrap testConfig{ width = w, maxLines = Just lns, placeholder = plc } txt)
+    let check w lns plc txt expected =
+          TW.wrap testConfig{ width = w, maxLines = Just lns, placeholder = plc } txt `shouldBe` Right expected
     it "takes a custom placeholder" $ do
       check 12 1 "..." text ["Hello..."]
       check 12 2 "..." text ["Hello there,", "how are..."]
 
     it "returns nothing when the placeholder and indentation are too long" $ do
-      -- The python library gives an error if the indent and placeholder
-      -- together are too long for it to fit
-      -- right now we just return an empty list, but that's bad
       TW.wrap testConfig{ width = 16
                         , maxLines = Just 1
                         , initialIndent = "    "
                         , placeholder = " [truncated]..."
                         }
-        text `shouldBe` []
+        text `shouldBe` Left TW.PlaceholderTooLarge
       TW.wrap testConfig{ width = 16
                         , maxLines = Just 2
                         , subsequentIndent = "    "
                         , placeholder = " [truncated]..."
                         }
-        text `shouldBe` []
+        text `shouldBe` Left TW.PlaceholderTooLarge
 
     it "handles long placeholders and indentation" $ do
-      TW.wrap testConfig{ width = 16
+      testWrap testConfig{ width = 16
                         , maxLines = Just 2
                         , initialIndent = "    "
                         , subsequentIndent = "  "
                         , placeholder = " [truncated]..."
                         }
-        text `shouldBe` ["    Hello there,", "  [truncated]..."]
-      TW.wrap testConfig{ width = 16
+        text ["    Hello there,", "  [truncated]..."]
+      testWrap testConfig{ width = 16
                         , maxLines = Just 1
                         , initialIndent = "   "
                         , subsequentIndent = "   "
                         , placeholder = " [truncated]..."
                         }
-        text `shouldBe` ["  [truncated]..."]
-      TW.wrap testConfig{ width = 80, placeholder = T.replicate 1000 "." } text `shouldBe` [text]
+        text ["  [truncated]..."]
+      testWrap testConfig{ width = 80, placeholder = T.replicate 1000 "." } text [text]
 
 
 longWordTests :: Spec
@@ -418,8 +414,8 @@ How *do* you spell that odd word, anyways?
       , "How *do* you spell that odd word, anyways?" ]
 
   it "always breaks *something* off" $
-    TW.wrap testConfig{ width = 10, subsequentIndent = T.replicate 15 " " }
-      (T.replicate 10 "-" `T.append` "hello") `shouldBe`
+    testWrap testConfig{ width = 10, subsequentIndent = T.replicate 15 " " }
+      (T.replicate 10 "-" `T.append` "hello")
         [ "----------"
         , "               h"
         , "               e"
@@ -443,7 +439,7 @@ How *do* you spell that odd word, anyways?
 
   it "doesn't break long words if told not to" $ do
     let cfg = testConfig{ width = 30, breakLongWords = False }
-    TW.wrap cfg text `shouldBe`
+    testWrap cfg text
       [ "Did you say"
       , "\"supercalifragilisticexpialidocious?\""
       , "How *do* you spell that odd"
@@ -464,7 +460,7 @@ indentTests = describe "Indenting" $
 This paragraph will be filled, first without any indentation,
 and then with some (including a hanging indent).|]
     it "fills with no indentation" $
-      TW.fill testConfig{ width = 40 } text `shouldBe`
+      TW.fill testConfig{ width = 40 } text `shouldBe` Right
         [Interp.text|\
 This paragraph will be filled, first
 without any indentation, and then with
@@ -476,15 +472,15 @@ some (including a hanging indent).|]
             , "first without any indentation, and then"
             , "with some (including a hanging indent)." ]
           cfg = testConfig{ width = 40, initialIndent = "     " }
-      TW.wrap cfg text `shouldBe` expect
-      TW.fill cfg text `shouldBe` T.intercalate "\n" expect
+      testWrap cfg text expect
+      TW.fill cfg text `shouldBe` (Right $ T.intercalate "\n" expect)
 
     it "fills with a subsequent indent" $ do
       let cfg = testConfig{ width = 40
                           , initialIndent = "  * "
                           , subsequentIndent = "    "
                           }
-      TW.fill cfg text `shouldBe`
+      TW.fill cfg text `shouldBe` Right
         [Interp.text|\
   * This paragraph will be filled, first
     without any indentation, and then
@@ -629,7 +625,7 @@ indentTestCases = describe "Indent" $ do
 
 checkShorten :: Int -> Maybe Text -> Text -> Text -> IO ()
 checkShorten width placeholder text expect =
-  TW.shorten cfg text `shouldBe` expect
+  TW.shorten cfg text `shouldBe` Right expect
     where cfg = case placeholder of
                   Just p  -> testConfig{ width = width, placeholder = p }
                   Nothing -> testConfig{ width = width }
@@ -677,9 +673,9 @@ shortenTests = describe "Shorten" $ do
     it "removes the leading space from the placeholder when it's on its own line" $
       checkShorten 10 Nothing "hello      world!  " "[...]"
 
-  -- This should probably return an error type
   it "returns nothing when width is too small for the placeholder" $
-    checkShorten 8 (Just "(.......)") (T.replicate 20 "x") ""
+    TW.shorten testConfig{ width = 8, placeholder = "(.......)" } (T.replicate 20 "x") `shouldBe`
+      Left TW.PlaceholderTooLarge
 
   it "replaces the first word with the placeholder if it's too long" $
     checkShorten 5 Nothing "Helloo" "[...]"

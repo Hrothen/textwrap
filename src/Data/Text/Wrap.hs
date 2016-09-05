@@ -5,6 +5,12 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.ICU.Types
 
+-- | A type representing the possible errors produced by
+-- | running one of the wrapping functions with invalid inputs
+data WrapError = InvalidWidth | PlaceholderTooLarge
+  deriving (Show, Eq)
+
+
 -- | A collection of config information
 data WrapperConfig = 
   WrapperConfig { width              :: Int -- ^ Maximum length of a wrapped line
@@ -41,17 +47,17 @@ defaultConfig = WrapperConfig { width = 70
 
 -- | Wraps the input text, returning a list of lines no more than 'width'
 -- | characters long
-wrap :: WrapperConfig -> Text -> [Text]
+wrap :: WrapperConfig -> Text -> Either WrapError [Text]
 wrap = undefined
 
 
 -- | Like wrap, but concatinates lines and adds newlines
-fill :: WrapperConfig -> Text -> Text
+fill :: WrapperConfig -> Text -> Either WrapError Text
 fill = undefined
 
 
 -- | Truncates input to no more than 'width' characters
-shorten :: WrapperConfig -> Text -> Text
+shorten :: WrapperConfig -> Text -> Either WrapError Text
 shorten = undefined
 
 
