@@ -604,7 +604,7 @@ indentTestCases = describe "Indent" $ do
                    , "\n  Hi.\n  This is a test.\n  Testing.\n"
                    , "  Hi.\r\n  This is a test.\r\n  Testing.\r\n"
                    , "\n  Hi.\r\n  This is a test.\n\r\n  Testing.\r\n\n" ]
-    zipWithM_ shouldBe (indentCases Nothing " ") expected
+    zipWithM_ shouldBe (indentCases Nothing "  ") expected
 
   it "adds a prefix to all lines when told to" $ do
     let expected = [ "  Hi.\n  This is a test.\n  Testing."
