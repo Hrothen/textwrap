@@ -85,8 +85,8 @@ dedent text = undefined
 
 -- | Remove common leading whitespace from all lines
 -- | Finds line breaks based on the given locale
-dedentLocale :: LocaleName -> Text -> Text
-dedentLocale locale text = undefined
+dedentWithLocale :: LocaleName -> Text -> Text
+dedentWithLocale locale text = undefined
 
 
 -- | Add 'prefix' to all lines matching the given predicate
