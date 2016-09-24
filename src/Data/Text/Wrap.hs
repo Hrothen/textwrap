@@ -7,19 +7,20 @@ module Data.Text.Wrap(
     , fill
     , shorten
     , dedent
-    , dedentLocale
+    , dedentWithLocale
     , indent
     , indentWithLocale
     ) where
 
 import Data.Char(isSpace)
 import Data.Maybe(fromMaybe)
-import Data.List(groupBy)
+import Data.List(foldl1', groupBy, elem)
 import Data.Function(on)
 
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.ICU
+import Data.Text.ICU.Char
 import Data.Text.ICU.Types
 
 
@@ -80,14 +81,46 @@ shorten = undefined
 
 
 -- | Remove common leading whitespace from all lines
+-- | Lines containing only whitespace are ignored
 dedent :: Text -> Text
-dedent text = undefined
+dedent = dedentWithLocale Current
 
 
 -- | Remove common leading whitespace from all lines
+-- | Lines containing only whitespace are ignored
 -- | Finds line breaks based on the given locale
 dedentWithLocale :: LocaleName -> Text -> Text
-dedentWithLocale locale text = undefined
+dedentWithLocale locale text = T.concat $ fmap applyMargin lns
+  where
+    lns = linebreaks locale text
+
+    applyMargin :: Text -> Text
+    applyMargin line | allWhitespace line = line
+                     | otherwise = fromMaybe line (T.stripPrefix margin line)
+
+    margins = takeSpaces <$> filter (T.any (not . isSpace)) lns
+    margin = if null margins then "" else foldl1' chooseMargin margins
+
+    takeSpaces = T.takeWhile isSpace . T.dropWhileEnd isBreak
+
+    chooseMargin acc mgn = case T.commonPrefixes acc mgn of
+                             Nothing -> T.empty
+                             Just (commonMargin,_,_) -> commonMargin
+
+
+isBreak :: Char -> Bool
+isBreak c = case property LineBreak c of
+              Nothing -> False
+              Just b -> b `elem` editorBreaks
+
+
+editorBreaks :: [LineBreak]
+editorBreaks = [ LineFeed
+               , CarriageReturn
+               , CombiningMark -- used by old QNX and Atari systems..
+               , NextLine
+               , MandatoryBreak
+               ]
 
 
 allWhitespace :: Text -> Bool
