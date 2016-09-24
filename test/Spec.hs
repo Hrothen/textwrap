@@ -513,9 +513,9 @@ dedentTests = describe "Dedent" $ do
       TW.dedent "  Hello there.\n\n  How are ya?\n  Oh good.\n" `shouldBe`
         "Hello there.\n\nHow are ya?\nOh good.\n"
 
-    it "doesn't ignore indentation on otherwise blank lines" $
+    it "ignores indentation on otherwise blank lines" $
       TW.dedent "  Hello there.\n  \n  How are ya?\n  Oh good.\n" `shouldBe`
-        "Hello there.\n\nHow are ya?\nOh good.\n"
+        "Hello there.\n  \nHow are ya?\nOh good.\n"
 
   describe "Uneven Indentation Levels" $ do
 
@@ -537,9 +537,9 @@ def foo():
       TW.dedent "  Foo\n    Bar\n\n   Baz\n" `shouldBe`
         "Foo\n  Bar\n\n Baz\n"
 
-    it "doesn't ignore whitespace on otherwise blank lines" $
+    it "ignores whitespace on otherwise blank lines" $
       TW.dedent "  Foo\n    Bar\n \n   Baz\n" `shouldBe`
-        "Foo\n  Bar\n\n Baz\n"
+        "Foo\n  Bar\n \n Baz\n"
 
   describe "Tabs" $ do
 
