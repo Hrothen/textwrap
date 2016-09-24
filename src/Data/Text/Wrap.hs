@@ -12,6 +12,7 @@ module Data.Text.Wrap(
     , indentWithLocale
     ) where
 
+import Data.Char(isSpace)
 import Data.Maybe(fromMaybe)
 import Data.List(groupBy)
 import Data.Function(on)
@@ -89,6 +90,10 @@ dedentWithLocale :: LocaleName -> Text -> Text
 dedentWithLocale locale text = undefined
 
 
+allWhitespace :: Text -> Bool
+allWhitespace = not . T.any (not . isSpace)
+
+
 -- | Add 'prefix' to all lines matching the given predicate
 -- | If no predicate is supplied, adds 'prefix' to all lines that don't consist
 -- | solely of whitespace
@@ -101,23 +106,22 @@ indent = indentWithLocale Current
 -- | solely of whitespace
 -- | Finds line breaks based on the given locale
 indentWithLocale :: LocaleName -> Maybe (Text -> Bool) -> Text -> Text -> Text
-indentWithLocale locale pred prefix = T.concat . fmap transform . linebreaks . breaks (breakLine locale)
+indentWithLocale locale pred prefix = T.concat . fmap transform . linebreaks locale
   where
     transform :: Text -> Text
-    transform break = if pred' break
-                      then prefix `T.append` break
-                      else break
+    transform break | pred' break = prefix `T.append` break
+                    | otherwise = break
 
     pred' = fromMaybe defaultPred pred
-    defaultPred ln = T.strip ln /= T.empty
+    defaultPred = not . allWhitespace
 
 
 -- collect lines by hard breaks
 -- soft breaks are accumulated and then attached to the next hard break
 -- so [Hard, Soft, Soft, Hard, Hard, Hard, Soft] becomes
 -- [Hard, 2Soft+Hard, Hard, Hard, Soft]
-linebreaks :: [Break Line] -> [Text]
-linebreaks = composeLines . concatMap breaksToTexts . groupBy ((==) `on` brkStatus)
+linebreaks :: LocaleName -> Text -> [Text]
+linebreaks locale = composeLines . concatMap breaksToTexts . groupBy ((==) `on` brkStatus) . breaks (breakLine locale)
   where
     breaksToTexts :: [Break Line] -> [(Text, Line)]
     breaksToTexts [] = []
