@@ -43,11 +43,12 @@ testWrapLen len = testWrap testConfig{ width = len }
 
 
 multiLineString :: Text
-multiLineString = [Interp.text|\
+multiLineString = multiLineString' "\t"
+multiLineString' a = [Interp.text|
 This is a paragraph that already has
 line breaks.  But some of its lines are much longer than the others,
 so it needs to be wrapped.
-Some lines are \ttabbed too.
+Some lines are ${a}tabbed too.
 What a mess!
 |]
 
@@ -114,7 +115,7 @@ wrapTests = describe "wrap" $ do
       testWrap cfg "I say, chaps! Anyone for \"tennis?\"\nHmmph!"
                   ["I say, chaps!  Anyone for \"tennis?\"  Hmmph!"]
       testWrap cfg{ width = 20 } "I say, chaps! Anyone for \"tennis?\"\nHmmph!"
-                                ["I say, chaps!', 'Anyone for \"tennis?\"', 'Hmmph!"]
+                                ["I say, chaps!", "Anyone for \"tennis?\"", "Hmmph!"]
       testWrap cfg{ width = 20 } "And she said, \"Go to hell!\"\nCan you believe that?"
                                  [ "And she said, \"Go to"
                                  , "hell!\"  Can you"
@@ -283,7 +284,7 @@ wrapTests = describe "wrap" $ do
 
     it "removes empty lines" $ do
       let text = "abcd    efgh"
-      testWrap cfg{ width = 6 } text ["abcd", "    ", "efgh"]
+      testWrap cfg{ width = 6, dropWhitespace = False } text ["abcd", "    ", "efgh"]
       testWrapLen 6 text ["abcd", "efgh"]
 
     it "doesn't add initial indent if dropping whitespace" $
@@ -297,8 +298,8 @@ wrapTests = describe "wrap" $ do
     it "respects breakOnHyphens" $ do
       let text = "yaba daba-doo"
       let cfg = testConfig{ width = 10 }
-      testWrap cfg{ breakOnHyphens = True  } text ["yaba daba-", "doo"]
-      testWrap cfg text ["yaba", "daba-doo"]
+      testWrap cfg text ["yaba daba-", "doo"]
+      testWrap cfg{ breakOnHyphens = False } text ["yaba", "daba-doo"]
 
   describe "Bad Width" $
     it "returns an error for invalid width values" $ do
@@ -325,7 +326,7 @@ maxLinesTests = describe "Max Lines" $ do
   let text = "Hello there, how are you this fine day?  I'm glad to hear it!"
   describe "Simple" $
     it "truncates everything after the line maximum" $ do
-      testWrapLines 12 0 text ["Hello [...]"]
+      TW.wrap testConfig{ width = 12, maxLines = Just 0 } text `shouldBe` Left TW.InvalidLineCount
       testWrapLines 12 1 text ["Hello [...]"]
       testWrapLines 12 2 text ["Hello there,", "how [...]"]
       testWrapLines 13 2 text ["Hello there,", "how are [...]"]
@@ -365,7 +366,7 @@ maxLinesTests = describe "Max Lines" $ do
       check 12 1 "..." text ["Hello..."]
       check 12 2 "..." text ["Hello there,", "how are..."]
 
-    it "returns nothing when the placeholder and indentation are too long" $ do
+    it "returns an error when the placeholder and indentation are too long" $ do
       TW.wrap testConfig{ width = 16
                         , maxLines = Just 1
                         , initialIndent = "    "
@@ -399,7 +400,7 @@ maxLinesTests = describe "Max Lines" $ do
 
 longWordTests :: Spec
 longWordTests = describe "Long Words" $ do
-  let text = [Interp.text|\
+  let text = [Interp.text|
 Did you say "supercalifragilisticexpialidocious?"
 How *do* you spell that odd word, anyways?
 |]
@@ -414,14 +415,14 @@ How *do* you spell that odd word, anyways?
       , "How *do* you spell that odd word, anyways?" ]
 
   it "always breaks *something* off" $
-    testWrap testConfig{ width = 10, subsequentIndent = T.replicate 15 " " }
-      (T.replicate 10 "-" `T.append` "hello")
-        [ "----------"
-        , "               h"
-        , "               e"
-        , "               l"
-        , "               l"
-        , "               o" ]
+    TW.wrap testConfig{ width = 10, subsequentIndent = T.replicate 15 " " }
+      (T.replicate 10 "-" `T.append` "hello") `shouldBe` Left TW.IndentTooLong
+        -- [ "----------"
+        -- , "               h"
+        -- , "               e"
+        -- , "               l"
+        -- , "               l"
+        -- , "               o" ]
 
   -- Prevent a long word to be wrongly wrapped when the
   -- preceding word is exactly one character shorter than the width
@@ -456,12 +457,12 @@ How *do* you spell that odd word, anyways?
 indentTests :: Spec
 indentTests = describe "Indenting" $
   describe "Fill" $ do
-    let text =[Interp.text|\
+    let text =[Interp.text|
 This paragraph will be filled, first without any indentation,
 and then with some (including a hanging indent).|]
     it "fills with no indentation" $
       TW.fill testConfig{ width = 40 } text `shouldBe` Right
-        [Interp.text|\
+        [Interp.text|
 This paragraph will be filled, first
 without any indentation, and then with
 some (including a hanging indent).|]
