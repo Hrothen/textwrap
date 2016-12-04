@@ -15,7 +15,8 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Data.Text.Wrap
+  exposed-modules:     Data.Text.Wrap,
+                       Data.Text.Wrap.Internal.Tokens
   build-depends:       base >= 4.7 && < 5,
                        text >= 0.9.1.0,
                        text-icu >= 0.7.0.1

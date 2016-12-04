@@ -16,7 +16,7 @@ module Data.Text.Wrap(
 import Data.Char(isSpace)
 import Data.Either(partitionEithers)
 import Data.Function(on)
-import Data.List(foldl1', groupBy, elem)
+import Data.List(foldl1', groupBy)
 import Data.Maybe(fromMaybe)
 import Data.Monoid((<>))
 
@@ -24,9 +24,12 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.ICU
 import Data.Text.ICU.Char
-import Data.Text.ICU.Types
+-- import Data.Text.ICU.Types
 
 import Prelude hiding (Word)
+
+import Data.Text.Wrap.Internal.Tokens(collect)
+
 
 -- | A type representing the possible errors produced by
 -- | running one of the wrapping functions with invalid inputs
@@ -75,51 +78,6 @@ defaultConfig = WrapperConfig { width = 70
                               }
 
 
--- information used while wrapping
-data Chunk = Chunk Text ChunkType
-  deriving (Show, Eq)
-
-
--- Equivalent to the status field of an ICU Break,
--- but seperate hyphens from Uncategorized
-data ChunkType = Number_
-               | Letters_
-               | Kana_
-               | Ideograph_
-               | Hyphens_
-               | Punctuation
-               | Uncategorized_
-               | Empty
-  deriving (Show, Eq)
-
-
-emptyChunk = Chunk "" Empty
-
-
-breakToChunk :: Break Word -> Chunk
-breakToChunk brk = case brkStatus brk of
-                     Number -> Chunk txt Number_
-                     Letter -> Chunk txt Letters_
-                     Kana   -> Chunk txt Kana_
-                     Ideograph -> Chunk txt Ideograph_
-                     Uncategorized -> punctuation (T.head txt)
-  where txt = brkBreak brk
-        punctuation c | c == '-' = Chunk txt Hyphens_
-                      | isPunctuation c = Chunk txt Punctuation
-                      | otherwise = Chunk txt Uncategorized_
-
-        isPunctuation c = property GeneralCategory c `elem` validPunctuation
-
-
-validPunctuation :: [GeneralCategory]
-validPunctuation = [ DashPunctuation
-                   , StartPunctuation
-                   , EndPunctuation
-                   , ConnectorPunctuation
-                   , OtherPunctuation
-                   ]
-
-
 -- | Wraps the input text, returning a list of lines no more than 'width'
 -- | characters long
 wrap :: WrapperConfig -> Text -> Either WrapError [Text]
@@ -129,7 +87,7 @@ wrap cfg txt | width cfg < 1 = Left InvalidWidth
              | T.length ii >= width cfg || T.length si >= width cfg = Left IndentTooLong
              | fromMaybe False ((<1) <$> maxLines cfg) = Left InvalidLineCount
              | otherwise =
-                 wrapChunks $  combineChunks $ breaks (breakWord (locale cfg)) $ preprocess txt
+                wrapChunks $ collect (breakOnHyphens cfg) $ breaks (breakWord (locale cfg)) $ preprocess txt
   where
     ii = initialIndent cfg
     si = subsequentIndent cfg
@@ -166,35 +124,6 @@ wrap cfg txt | width cfg < 1 = Left InvalidWidth
 
 
   --TODO: almost everything below here needs a better name
-
-    mergeHyphens chk@(Chunk !c _) [] = [chk]
-    mergeHyphens (Chunk _ Empty) (c:cs) = mergeHyphens c cs
-    mergeHyphens (Chunk !h Hyphens_) ((Chunk h' Hyphens_):cs) = mergeHyphens (Chunk (h <> h') Hyphens_) cs
-    mergeHyphens chk@(Chunk _ _) (c:cs) = chk : mergeHyphens c cs
-
-    combineChunks :: [Break Word] -> [Text]
-    combineChunks = combineChunks' emptyChunk . mergeHyphens emptyChunk . fmap breakToChunk
-
-    combineChunks' :: Chunk -> [Chunk] -> [Text]
-    combineChunks' (Chunk !c _) [] = [c]
-    combineChunks' (Chunk _ Empty) (c:cs) = combineChunks' c cs
-    combineChunks' (Chunk !h Hyphens_) ((Chunk c Letters_):cs) = combineChunks' (Chunk (h <> c) Letters_) cs
-                                                               -- | otherwise = h : combineChunks' (Chunk c Letters_) cs
-    combineChunks' (Chunk !p Punctuation) ((Chunk w Letters_):cs) | p == "\'" || p == "\"" = combineChunks' (Chunk (p <> w) Letters_) cs
-                                                                  | otherwise = p : combineChunks' (Chunk w Letters_) cs
-    -- combineChunks' (Chunk !h Hyphens_) ((Chunk h' Hyphens_):cs) = combineChunks' (Chunk (h <> h') Hyphens_) cs
-    combineChunks' (Chunk !c Letters_) ((Chunk h Hyphens_):(Chunk c' Letters_):cs) | not (breakOnHyphens cfg) && h == "-" = combineChunks' (Chunk (c <> h <> c') Letters_) cs
-                                                                                   | breakOnHyphens cfg && h == "-" = (c <> h) : combineChunks' (Chunk c' Letters_) cs
-                                                                                   | otherwise = c : h : combineChunks' (Chunk c' Letters_) cs
-    combineChunks' (Chunk !c Letters_) ((Chunk h Hyphens_):cs) | breakOnHyphens cfg && h == "-" = (c <> h) : combineChunks' emptyChunk cs
-                                                               | h == "--" = c : combineChunks' (Chunk h Hyphens_) cs
-                                                               | not (breakOnHyphens cfg) && h == "-" = combineChunks' (Chunk (c <> h) Letters_) cs
-                                                               | otherwise = c : combineChunks' (Chunk h Hyphens_) cs
-    combineChunks' (Chunk !c Letters_) ((Chunk p Punctuation):cs) = combineChunks' (Chunk (c <> p) Letters_) cs
-    combineChunks' (Chunk !n Number_) ((Chunk h Hyphens_):(Chunk n' Number_):cs) = combineChunks' (Chunk (n <> h <> n') Number_) cs
-    combineChunks' (Chunk !n Number_) ((Chunk p Punctuation):cs) = combineChunks' (Chunk (n <> p) Number_) cs
-    combineChunks' (Chunk !w Uncategorized_) ((Chunk w' Uncategorized_):cs) = combineChunks' (Chunk (w <> w') Uncategorized_) cs
-    combineChunks' (Chunk !c _) (c':cs) = c : combineChunks' c' cs
 
 
     wrapChunks :: [Text] -> Either WrapError [Text]
