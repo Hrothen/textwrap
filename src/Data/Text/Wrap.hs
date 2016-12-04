@@ -17,7 +17,7 @@ import Data.Char(isSpace)
 import Data.Either(partitionEithers)
 import Data.Function(on)
 import Data.List(foldl1', groupBy)
-import Data.Maybe(fromMaybe)
+import Data.Maybe(isJust, fromMaybe)
 import Data.Monoid((<>))
 
 import Data.Text (Text)
@@ -85,8 +85,11 @@ wrap cfg txt | width cfg < 1   = Left InvalidWidth
              | tabsize cfg < 0 = Left InvalidTabSize
              | T.length ii >= width cfg || T.length si >= width cfg = Left IndentTooLong
              | fromMaybe False ((<1) <$> maxLines cfg) = Left InvalidLineCount
+             | isJust (maxLines cfg) && T.length (placeholder cfg) >= width cfg = Left PlaceholderTooLarge
+             | fromMaybe False ((==1) <$> maxLines cfg) && T.length (placeholder cfg) + T.length ii >= (width cfg) = Left PlaceholderTooLarge
+             | isJust (maxLines cfg) && T.length (placeholder cfg) + T.length si >= (width cfg) = Left PlaceholderTooLarge
              | otherwise =
-                wrapChunks $ collect (breakOnHyphens cfg) $ breaks (breakWord (locale cfg)) $ preprocess txt
+                Right $ wrapChunks $ collect (breakOnHyphens cfg) $ breaks (breakWord (locale cfg)) $ preprocess txt
   where
     ii = initialIndent cfg
     si = subsequentIndent cfg
@@ -126,12 +129,12 @@ wrap cfg txt | width cfg < 1   = Left InvalidWidth
   --TODO: almost everything below here needs a better name
 
 
-    wrapChunks :: [Text] -> Either WrapError [Text]
+    wrapChunks :: [Text] -> [Text]
     wrapChunks = case (maxLines cfg, breakLongWords cfg) of
-                   (Nothing, False) -> Right . filter (not . T.null) . wrapNoBreak
-                   (Nothing, True)  -> Right . filter (not . T.null) . wrapBreak
-                   (Just n, False)  -> fmap (filter (not . T.null)) . wrapLinesNoBreak n
-                   (Just n, True)   -> fmap (filter (not . T.null)) . wrapLinesNoBreak (n - 1)
+                   (Nothing, False) -> filter (not . T.null) . wrapNoBreak
+                   (Nothing, True)  -> filter (not . T.null) . wrapBreak
+                   (Just n, False)  -> filter (not . T.null) . wrapLinesNoBreak n
+                   (Just n, True)   -> filter (not . T.null) . wrapLinesNoBreak (n - 1)
 
     wrapNoBreak []                          = []
     wrapNoBreak [c] | T.null (maybeStrip c) = []
@@ -147,13 +150,12 @@ wrap cfg txt | width cfg < 1   = Left InvalidWidth
                      | otherwise          = (ii <> c') : fmap (si <>) cs'
       where (c':cs') = goBreak ii (T.length c, c) cs
 
-    wrapLinesNoBreak _ [] = Right []
-    wrapLinesNoBreak _ [c] | T.null (maybeStrip c) = Right []
-                           | otherwise = Right [ii <> maybeStrip c]
-    wrapLinesNoBreak n (c:cs) = case partitionEithers (goLinesNoBreak n ii (T.length c, c) cs) of
-                                  ([],("":cs')) -> Right (fmap (si <>) cs')
-                                  ([],(c':cs')) -> Right ((ii <> c') : fmap (si <>) cs')
-                                  ([err],_) -> Left err
+    wrapLinesNoBreak _ []                          = []
+    wrapLinesNoBreak _ [c] | T.null (maybeStrip c) = []
+                           | otherwise             = [ii <> maybeStrip c]
+    wrapLinesNoBreak n (c:cs) = case goLinesNoBreak n ii (T.length c, c) cs of
+                                  ("":cs') -> fmap (si <>) cs'
+                                  (c':cs') -> (ii <> c') : fmap (si <>) cs'
 
     maybeStrip = if dropWhitespace cfg
                  then T.strip
@@ -179,18 +181,16 @@ wrap cfg txt | width cfg < 1   = Left InvalidWidth
         clen = T.length c
         wdth = width cfg - T.length i
 
-    goLinesNoBreak :: Int -> Text -> (Int, Text) -> [Text] -> [Either WrapError Text]
-    goLinesNoBreak _ _ (!len, !text) [] = [Right (maybeStripEnd text)]
+    goLinesNoBreak :: Int -> Text -> (Int, Text) -> [Text] -> [Text]
+    goLinesNoBreak _ _ (!len, !text) [] = [maybeStripEnd text]
     -- reached the last line, need to behave slightly differently
     goLinesNoBreak 0 i (!len, !text) (c:cs)
-      | T.null text && clen > wdth && plen > wdth    = [Left PlaceholderTooLarge]
-      | T.null text && clen > wdth                   = [Right (placeholder cfg)]
+      | T.null text && clen > wdth                   = [placeholder cfg]
       | T.null text                                  = goLinesNoBreak 0 i (clen, c) cs
-      | clen > wdth && len + plen + ilen < width cfg = [Right ((maybeStripEnd text) <> placeholder cfg)]
-      | clen > wdth && len + plen + ilen > width cfg = [Left PlaceholderTooLarge]
-      | clen > wdth                                  = [Right (maybeStripEnd text)]
+      | clen > wdth && len + plen + ilen < width cfg = [(maybeStripEnd text) <> placeholder cfg]
+      | clen > wdth                                  = [maybeStripEnd text]
       | clen + len <= wdth                           = goLinesNoBreak 0 i (len + clen, text <> c) cs
-      | otherwise                                    = [Right ((maybeStripEnd text) <> placeholder cfg)]
+      | otherwise                                    = [(maybeStripEnd text) <> placeholder cfg]
       where
         wdth = width cfg - ilen - plen
         plen = T.length (placeholder cfg)
@@ -198,9 +198,9 @@ wrap cfg txt | width cfg < 1   = Left InvalidWidth
         ilen = T.length i
     goLinesNoBreak n i (!len, !text) (c:cs)
       | T.null text        = goLinesNoBreak n i (clen, c) cs
-      | clen > wdth        = (Right $ maybeStripEnd text) : (goLinesNoBreak (n - 1) si (0, "") (dropWhitespaceTokens (c:cs)))
+      | clen > wdth        = (maybeStripEnd text) : (goLinesNoBreak (n - 1) si (0, "") (dropWhitespaceTokens (c:cs)))
       | clen + len <= wdth = goLinesNoBreak n i (len + clen, text <> c) cs
-      | otherwise          = (Right $ maybeStripEnd text) : (goLinesNoBreak (n - 1) si (0, "") (dropWhitespaceTokens (c:cs)))
+      | otherwise          = (maybeStripEnd text) : (goLinesNoBreak (n - 1) si (0, "") (dropWhitespaceTokens (c:cs)))
       where
         wdth = width cfg - T.length i
         clen = T.length c
