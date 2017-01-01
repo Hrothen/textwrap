@@ -85,9 +85,9 @@ wrap cfg txt | width cfg < 1   = Left InvalidWidth
              | tabsize cfg < 0 = Left InvalidTabSize
              | T.length ii >= width cfg || T.length si >= width cfg = Left IndentTooLong
              | fromMaybe False ((<1) <$> maxLines cfg) = Left InvalidLineCount
-             | isJust (maxLines cfg) && T.length (placeholder cfg) >= width cfg = Left PlaceholderTooLarge
-             | fromMaybe False ((==1) <$> maxLines cfg) && T.length (placeholder cfg) + T.length ii >= (width cfg) = Left PlaceholderTooLarge
-             | isJust (maxLines cfg) && T.length (placeholder cfg) + T.length si >= (width cfg) = Left PlaceholderTooLarge
+             | isJust (maxLines cfg) && T.length (placeholder cfg) > width cfg = Left PlaceholderTooLarge
+             | fromMaybe False ((==1) <$> maxLines cfg) && T.length (placeholder cfg) + T.length (T.stripEnd ii) > width cfg = Left PlaceholderTooLarge
+             | isJust (maxLines cfg) && T.length (placeholder cfg) + T.length (T.stripEnd si) > width cfg = Left PlaceholderTooLarge
              | otherwise =
                 Right $ wrapChunks $ collect (breakOnHyphens cfg) $ breaks (breakWord (locale cfg)) $ preprocess txt
   where
@@ -134,7 +134,7 @@ wrap cfg txt | width cfg < 1   = Left InvalidWidth
                    (Nothing, False) -> filter (not . T.null) . wrapNoBreak
                    (Nothing, True)  -> filter (not . T.null) . wrapBreak
                    (Just n, False)  -> filter (not . T.null) . wrapLinesNoBreak n
-                   (Just n, True)   -> filter (not . T.null) . wrapLinesNoBreak (n - 1)
+                   (Just n, True)   -> filter (not . T.null) . undefined
 
     wrapNoBreak []                          = []
     wrapNoBreak [c] | T.null (maybeStrip c) = []

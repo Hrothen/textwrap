@@ -348,7 +348,7 @@ maxLinesTests = describe "Max Lines" $ do
         , "day? [...]" ]
 
     it "puts the placeholder at the start of the line if nothing fits" $
-      testWrapLines 6 2 text ["Hello", "[...]"]
+      testWrapLines 7 2 text ["Hello", "[...]"]
 
     it "doesn't use a placeholder for trailing spaces" $
       testWrapLines 12 6 (text `T.append` T.replicate 10 " ")
@@ -366,21 +366,21 @@ maxLinesTests = describe "Max Lines" $ do
       check 12 1 "..." text ["Hello..."]
       check 12 2 "..." text ["Hello there,", "how are..."]
 
-    it "returns an error when the placeholder and indentation are too long" $ do
+    it "returns an error when the placeholder and non-whitespace indentation are too long" $ do
       TW.wrap testConfig{ width = 16
                         , maxLines = Just 1
-                        , initialIndent = "    "
+                        , initialIndent = "wat>"
                         , placeholder = " [truncated]..."
                         }
         text `shouldBe` Left TW.PlaceholderTooLarge
       TW.wrap testConfig{ width = 16
                         , maxLines = Just 2
-                        , subsequentIndent = "    "
+                        , subsequentIndent = "why>"
                         , placeholder = " [truncated]..."
                         }
         text `shouldBe` Left TW.PlaceholderTooLarge
 
-    it "handles long placeholders and indentation" $ do
+    it "handles long placeholders and whitespace indentation" $ do
       testWrap testConfig{ width = 16
                         , maxLines = Just 2
                         , initialIndent = "    "
