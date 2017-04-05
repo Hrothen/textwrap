@@ -148,11 +148,11 @@ wrap cfg txt | width cfg < 1   = Left InvalidWidth
       where c' = maybeStrip c
             doBreak = id -- TODO: this needs to break c up
     wrapFull break (c:cs) =
-      let (c':cs') = go break ii (T.length c, [c]) cs
-          tail     = fmap (catTokens si) cs'
+      let (c':cs') = go break (T.length ii, [ii]) (c:cs)
+          tail     = fmap catTokens cs'
        in case c' of
          [] -> tail
-         _  -> (catTokens ii c') : tail
+         _  -> (catTokens c') : tail
 
     -- wrapLines is almost exactly the same as wrapFull,
     -- but it needs to mess with the last line before concating
@@ -166,7 +166,7 @@ wrap cfg txt | width cfg < 1   = Left InvalidWidth
       where c' = maybeStrip c
             doBreak a = [a] -- TODO: this needs to break c
     wrapLines n break (c:cs) =
-      let (c':cs') = go break ii (T.length c, [c]) cs
+      let (c':cs') = go break (T.length ii, [ii]) cs
           lines = case c' of
             [] -> cs'
             _  -> c':cs'
@@ -175,27 +175,29 @@ wrap cfg txt | width cfg < 1   = Left InvalidWidth
          (lines', [last])  -> undefined
          (lines', last:ls) -> undefined
 
-    go :: Bool -> Text -> (Int, TokenList) -> [Text] -> [TokenList]
-    go _ _ (!len, text) [] | null text = []
+
+    go :: Bool -> (Int, TokenList) -> [Text] -> [TokenList]
+    go _ (!len, text) [] | null text = []
                            | otherwise = [dropWhitespaceTokens text]
-    go break i (!len, text) (c:cs)
+    go break (!len, text) (c:cs)
       -- the next token is too long for one line,
       -- either break it or put it on one line
       | clen > wdth = if break
                         -- don't need to clean up whitespace when breaking
-                        then (c1:text) : (go break si (0, []) (c2:cs))
-                        else text' : [c'] : (go break si (0,[]) cs')
+                        then (c1:text) : startNewLine (c2:cs)
+                        else text' : [c'] : startNewLine cs'
       -- the next token fits, doesn't matter if break is set
-      | clen + len <= wdth = go break i (len + clen, c : text) cs
+      | clen + len <= wdth = go break (len + clen, c : text) cs
       -- can't fit next token on this line, start a new one
-      | otherwise = text' : (go break si (0, []) (dropWhitespaceTokens (c:cs)))
+      | otherwise = text' : startNewLine (dropWhitespaceTokens (c:cs))
       where
         clen    = T.length c
-        wdth    = width cfg - T.length i
+        wdth    = width cfg
         (c1,c2) = T.splitAt (wdth - len) c
         text'   = dropWhitespaceTokens text -- maybeStripEnd text
         c'      = maybeStripEnd c
         cs'     = dropWhitespaceTokens cs
+        startNewLine = go break (T.length si, [si])
 
 
     maybeStrip = if dropWhitespace cfg
@@ -210,7 +212,7 @@ wrap cfg txt | width cfg < 1   = Left InvalidWidth
                            then dropWhile (T.any isSpace)
                            else id
 
-    catTokens indent = (indent <>) . T.concat . reverse
+    catTokens = T.concat . reverse
 
 
 -- | Like wrap, but concatinates lines and adds newlines
