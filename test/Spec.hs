@@ -348,7 +348,7 @@ maxLinesTests = describe "Max Lines" $ do
         , "day? [...]" ]
 
     it "puts the placeholder at the start of the line if nothing fits" $
-      testWrapLines 7 2 text ["Hello", "[...]"]
+      testWrapLines 7 2 text ["Hello", " [...]"]
 
     it "doesn't use a placeholder for trailing spaces" $
       testWrapLines 12 6 (text `T.append` T.replicate 10 " ")
@@ -387,14 +387,14 @@ maxLinesTests = describe "Max Lines" $ do
                         , subsequentIndent = "  "
                         , placeholder = " [truncated]..."
                         }
-        text ["    Hello there,", "  [truncated]..."]
+        text ["    Hello there,", " [truncated]..."]
       testWrap testConfig{ width = 16
                         , maxLines = Just 1
                         , initialIndent = "   "
                         , subsequentIndent = "   "
                         , placeholder = " [truncated]..."
                         }
-        text ["  [truncated]..."]
+        text [" [truncated]..."]
       testWrap testConfig{ width = 80, placeholder = T.replicate 1000 "." } text [text]
 
 
@@ -447,11 +447,11 @@ How *do* you spell that odd word, anyways?
       , "word, anyways?" ]
 
   it "truncates long words if they go over the max lines" $
-    testWrapLines 30 4 text
+    testWrapLines 12 4 text
       [ "Did you say "
       , "\"supercalifr"
       , "agilisticexp"
-      , "[...]" ]
+      , " [...]" ]
 
 
 indentTests :: Spec
