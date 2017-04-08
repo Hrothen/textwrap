@@ -15,7 +15,6 @@ module Data.Text.Wrap(
     ) where
 
 import Data.Char(isSpace)
-import Data.Either(partitionEithers)
 import Data.Function(on)
 import Data.List(foldl1', groupBy)
 import Data.Maybe(isJust, fromMaybe, fromJust)
@@ -187,9 +186,9 @@ wrap cfg txt = validateConfig cfg >>
 
     -- handle cleanup around the last line when breaking
     handleBreak n lines = case splitAt (n - 1) lines of
-      (_, [])           -> catTokens <$> lines
-      (_, [last])       -> catTokens <$> lines
-      (lines', last:ls) -> catTokens <$> lines' <> [fixupEnd last]
+      (_, [])          -> catTokens <$> lines
+      (_, [_])         -> catTokens <$> lines
+      (lines', last:_) -> catTokens <$> lines' <> [fixupEnd last]
       where
         fixupEnd tokens =
         -- TODO: should get length some other way
