@@ -26,7 +26,11 @@ import Data.Text.ICU.Types
 
 -- | A type representing the possible errors produced by
 -- | running one of the wrapping functions with invalid inputs
-data WrapError = InvalidWidth | PlaceholderTooLarge
+data WrapError = InvalidWidth
+               | InvalidTabSize
+               | IndentTooLong
+               | InvalidLineCount
+               | PlaceholderTooLarge
   deriving (Show, Eq)
 
 
