@@ -661,12 +661,9 @@ shortenTests = describe "Shorten" $ do
       checkShorten 12 Nothing "hello      world!  " "hello world!"
       checkShorten 11 Nothing "hello      world!  " "hello [...]"
 
-    it "removes the leading space from the placeholder when it's on its own line" $
-      checkShorten 10 Nothing "hello      world!  " "[...]"
-
   it "returns nothing when width is too small for the placeholder" $
     TW.shorten testConfig{ width = 8, placeholder = "(.......)" } (T.replicate 20 "x") `shouldBe`
       Left TW.PlaceholderTooLarge
 
   it "replaces the first word with the placeholder if it's too long" $
-    checkShorten 5 Nothing "Helloo" "[...]"
+    checkShorten 6 Nothing "Hellooo" " [...]"
