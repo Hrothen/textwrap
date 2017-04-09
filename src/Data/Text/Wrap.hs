@@ -265,7 +265,7 @@ dedent = dedentWithLocale Current
 -- | Lines containing only whitespace are ignored
 -- | Finds line breaks based on the given locale
 dedentWithLocale :: LocaleName -> Text -> Text
-dedentWithLocale locale text = T.concat $ fmap applyMargin lns
+dedentWithLocale locale text = mconcat $ fmap applyMargin lns
   where
     lns = linebreaks locale text
 
@@ -314,10 +314,10 @@ indent = indentWithLocale Current
 -- | solely of whitespace
 -- | Finds line breaks based on the given locale
 indentWithLocale :: LocaleName -> Maybe (Text -> Bool) -> Text -> Text -> Text
-indentWithLocale locale pred prefix = T.concat . fmap transform . linebreaks locale
+indentWithLocale locale pred prefix = mconcat . fmap transform . linebreaks locale
   where
     transform :: Text -> Text
-    transform break | pred' break = prefix `T.append` break
+    transform break | pred' break = prefix <> break
                     | otherwise = break
 
     pred' = fromMaybe defaultPred pred
@@ -334,11 +334,11 @@ linebreaks locale = composeLines . concatMap breaksToTexts . groupBy ((==) `on` 
     breaksToTexts :: [Break Line] -> [(Text, Line)]
     breaksToTexts [] = []
     breaksToTexts chunks = case brkStatus (head chunks) of
-                             Soft -> [(T.concat $ fmap brkBreak chunks, Soft)]
+                             Soft -> [(mconcat $ fmap brkBreak chunks, Soft)]
                              Hard -> fmap (\chunk -> (brkBreak chunk, Hard)) chunks
 
     composeLines :: [(Text, Line)] -> [Text]
     composeLines [] = []
     composeLines [(text, _)] = [text]
     composeLines ((text, Hard):lns) = text : composeLines lns
-    composeLines ((text, Soft):ln:lns) = text `T.append` fst ln : composeLines lns
+    composeLines ((text, Soft):ln:lns) = text <> fst ln : composeLines lns
