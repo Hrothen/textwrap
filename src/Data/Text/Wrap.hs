@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE MultiWayIf #-}
 module Data.Text.Wrap(
       WrapError(..)
     , WrapperConfig(..)
@@ -13,15 +15,19 @@ module Data.Text.Wrap(
     ) where
 
 import Data.Char(isSpace)
-import Data.Maybe(fromMaybe)
-import Data.List(foldl1', groupBy, elem)
 import Data.Function(on)
+import Data.List(foldl1', groupBy)
+import Data.Maybe(isJust, fromMaybe, fromJust)
+import Data.Monoid((<>))
 
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.ICU
 import Data.Text.ICU.Char
-import Data.Text.ICU.Types
+
+import Prelude hiding (Word)
+
+import Data.Text.Wrap.Internal.Tokens(collect)
 
 
 -- | A type representing the possible errors produced by
@@ -39,6 +45,7 @@ data WrapperConfig =
   WrapperConfig { width              :: Int -- ^ Maximum length of a wrapped line
                 , expandTabs         :: Bool -- ^ If true, all tabs will be replaced with spaces
                 , tabsize            :: Int -- ^ Number of spaces to use for a tab if 'expandTabs' is true
+                , useTabStops        :: Bool -- ^ If true, aligns tabs on nearest multiple of tabsize
                 , replaceWhitespace  :: Bool -- ^ Replace all whitespace with spaces before wrapping
                 , dropWhitespace     :: Bool -- ^ Drop whitespace around lines
                 , initialIndent      :: Text -- ^ Text prepended to the first line
@@ -56,6 +63,7 @@ defaultConfig :: WrapperConfig
 defaultConfig = WrapperConfig { width = 70
                               , expandTabs = True
                               , tabsize = 8
+                              , useTabStops = True
                               , replaceWhitespace = True
                               , dropWhitespace = True
                               , initialIndent = ""
@@ -68,10 +76,173 @@ defaultConfig = WrapperConfig { width = 70
                               , locale = Current
                               }
 
+
+type TokenList = [Text]
+
+validateConfig :: WrapperConfig -> Either WrapError ()
+validateConfig cfg
+  | width cfg < 1 = Left InvalidWidth
+  | tabsize cfg < 0 = Left InvalidTabSize
+  | T.length ii >= width cfg = Left IndentTooLong
+  | T.length si >= width cfg = Left IndentTooLong
+  | isJust (maxLines cfg) = if | maxlines < 1 -> Left InvalidLineCount
+                               | plen > width cfg -> Left PlaceholderTooLarge
+                               | maxlines == 1 && plen + ilen > width cfg -> Left PlaceholderTooLarge
+                               | plen + slen > width cfg -> Left PlaceholderTooLarge
+                               | otherwise -> Right ()
+  | otherwise = Right ()
+  where
+    ii = initialIndent cfg
+    si = subsequentIndent cfg
+    maxlines = fromJust (maxLines cfg)
+    plen = T.length (placeholder cfg)
+    ilen = T.length (T.stripEnd ii)
+    slen = T.length (T.stripEnd si)
+
 -- | Wraps the input text, returning a list of lines no more than 'width'
 -- | characters long
 wrap :: WrapperConfig -> Text -> Either WrapError [Text]
-wrap = undefined
+wrap _ "" = Right []
+wrap cfg txt = validateConfig cfg >>
+  (return $ wrapChunks $ collect (breakOnHyphens cfg) $ breaks (breakWord (locale cfg)) $ preprocess txt)
+  where
+    ii = initialIndent cfg
+    si = subsequentIndent cfg
+
+    preprocess :: Text -> Text
+    preprocess = fixSentences . substitueWhitespace . tabsToSpaces
+
+    tabsToSpaces = if expandTabs cfg
+                   then if useTabStops cfg
+                        then mconcat . fmap (expandToTabBoundry . T.split (=='\t')) . linebreaks (locale cfg)
+                        else T.replace "\t" (T.replicate (tabsize cfg) " ")
+                   else id
+
+    expandToTabBoundry []   = ""
+    expandToTabBoundry [ln] = ln
+    expandToTabBoundry lns  = expandToTabBoundry' (0, "") lns
+
+    expandToTabBoundry' (!len, !text) [ln]     = text <> ln
+    expandToTabBoundry' (!len, !text) (ln:lns) = expandToTabBoundry' (len + ilen, text <> ln <> ind) lns
+      where
+        ind = T.replicate indlen " "
+        indlen = (tabsize cfg) - ((len + T.length ln) `mod` (tabsize cfg))
+        ilen = indlen + T.length ln
+
+    substitueWhitespace = if replaceWhitespace cfg
+                            then T.map (\c -> if isSpace c then ' ' else c)
+                            else id
+
+    fixSentences
+      | fixSentenceEndings cfg = T.concat . fmap (sentenceWhitespace . brkBreak) . breaks (breakSentence (locale cfg))
+      | otherwise = id
+
+    sentenceWhitespace ln = let trailingWhitespace = T.takeWhileEnd isSpace ln
+                                breakPart          = T.takeWhileEnd isBreak trailingWhitespace
+                             in T.concat [T.dropWhileEnd isSpace ln, "  ", breakPart]
+
+
+  --TODO: almost everything below here needs a better name
+
+
+    wrapChunks :: [Text] -> [Text]
+    wrapChunks = case maxLines cfg of
+      Nothing -> filter (not . T.null) . wrapFull (breakLongWords cfg)
+      Just n  -> filter (not . T.null) . wrapLines n (breakLongWords cfg)
+
+
+    wrapFull :: Bool -> [Text] -> [Text]
+    wrapFull _ [] = []
+    wrapFull break [c]
+      | T.null c' = []
+      | break     = catTokens <$> go break (T.length ii, [ii]) [c]
+      | otherwise = [ii <> c']
+      where c' = maybeStrip c
+    wrapFull break cs =
+      let (c':cs') = go break (T.length ii, [ii]) cs
+          tail     = fmap catTokens cs'
+       in case c' of
+         [] -> tail
+         _  -> (catTokens c') : tail
+
+
+    -- wrapLines is almost exactly the same as wrapFull,
+    -- but it needs to mess with the last line before concating
+    -- the tokens, so it's it's own function for now
+    wrapLines :: Int -> Bool -> [Text] -> [Text]
+    wrapLines _ _ [] = []
+    wrapLines n break [c]
+      | T.null c' = []
+      | break     = handleBreak n (go break (T.length ii, [ii]) [c])
+      | otherwise = [ii <> c']
+      where c' = maybeStrip c
+    wrapLines n break cs =
+      let (c':cs') = go break (T.length ii, [ii]) cs
+          lines = case c' of
+            [] -> cs'
+            _  -> c':cs'
+       in handleBreak n lines
+
+
+    -- handle cleanup around the last line when breaking
+    handleBreak n lines = case splitAt (n - 1) lines of
+      (_, [])          -> catTokens <$> lines
+      (_, [_])         -> catTokens <$> lines
+      (lines', last:_) -> catTokens <$> lines' <> [fixupEnd last]
+      where
+        fixupEnd tokens =
+        -- TODO: should get length some other way
+          let tokens' = dropWhitespaceTokens tokens
+              len = sum (T.length <$> tokens')
+              pl  = placeholder cfg
+           in if len + T.length pl <= width cfg
+                then pl : tokens'
+                else fixupEnd (tail tokens')
+
+
+    go :: Bool -> (Int, TokenList) -> [Text] -> [TokenList]
+    go _ (!len, text) [] | null text' = []
+                         | otherwise  = [text']
+      where
+        text' = filter (not . T.null) (dropWhitespaceTokens text)
+    go break (!len, text) (c:cs)
+      -- the next token is too long for one line,
+      -- either break it or put it on one line
+      | clen > wdth = if break
+                        -- don't need to clean up whitespace when breaking
+                        then (c1:text) : startNewLine (c2:cs)
+                        else if null text'
+                               then [c'] : startNewLine cs'
+                               else text' : [c'] : startNewLine cs'
+      -- the next token fits, doesn't matter if break is set
+      | clen + len <= wdth = go break (len + clen, c : text) cs
+      -- can't fit next token on this line, start a new one
+      | otherwise = if null text'
+                      then startNewLine (dropWhitespaceTokens (c:cs))
+                      else text' : startNewLine (dropWhitespaceTokens (c:cs))
+      where
+        clen    = T.length c
+        wdth    = width cfg
+        (c1,c2) = T.splitAt (wdth - len) c
+        text'   = filter (not . T.null) (dropWhitespaceTokens text)
+        c'      = maybeStripEnd c
+        cs'     = dropWhitespaceTokens cs
+        startNewLine = go break (T.length si, [si])
+
+
+    maybeStrip = if dropWhitespace cfg
+                   then T.strip
+                   else id
+
+    maybeStripEnd = if dropWhitespace cfg
+                      then T.stripEnd
+                      else id
+
+    dropWhitespaceTokens = if dropWhitespace cfg
+                             then dropWhile (T.any isSpace)
+                             else id
+
+    catTokens = T.concat . reverse
 
 
 -- | Like wrap, but concatinates lines and adds newlines
