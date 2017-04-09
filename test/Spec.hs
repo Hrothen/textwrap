@@ -18,8 +18,7 @@ import Data.Text.Wrap(WrapperConfig(..))
 import qualified Data.Text.Wrap as TW
 import Data.Text(Text)
 import qualified Data.Text as T
-import qualified NeatInterpolation as Interp
-
+import Text.InterpolatedString.Perl6 (q)
 
 main = hspec $
   describe "Textwrap" $ do
@@ -43,15 +42,12 @@ testWrapLen len = testWrap testConfig{ width = len }
 
 
 multiLineString :: Text
-multiLineString = multiLineString' "\t"
-multiLineString' a = [Interp.text|
-This is a paragraph that already has
+multiLineString = [q|This is a paragraph that already has
 line breaks.  But some of its lines are much longer than the others,
 so it needs to be wrapped.
-Some lines are ${a}tabbed too.
+Some lines are 	tabbed too.
 What a mess!
 |]
-
 
 wrapTests :: Spec
 wrapTests = describe "wrap" $ do
@@ -400,8 +396,7 @@ maxLinesTests = describe "Max Lines" $ do
 
 longWordTests :: Spec
 longWordTests = describe "Long Words" $ do
-  let text = [Interp.text|
-Did you say "supercalifragilisticexpialidocious?"
+  let text = [q|Did you say "supercalifragilisticexpialidocious?"
 How *do* you spell that odd word, anyways?
 |]
   it "breaks up long words" $ do
@@ -457,13 +452,11 @@ How *do* you spell that odd word, anyways?
 indentTests :: Spec
 indentTests = describe "Indenting" $
   describe "Fill" $ do
-    let text =[Interp.text|
-This paragraph will be filled, first without any indentation,
+    let text =[q|This paragraph will be filled, first without any indentation,
 and then with some (including a hanging indent).|]
     it "fills with no indentation" $
       TW.fill testConfig{ width = 40 } text `shouldBe` Right
-        [Interp.text|
-This paragraph will be filled, first
+        [q|This paragraph will be filled, first
 without any indentation, and then with
 some (including a hanging indent).|]
 
@@ -482,8 +475,7 @@ some (including a hanging indent).|]
                           , subsequentIndent = "    "
                           }
       TW.fill cfg text `shouldBe` Right
-        [Interp.text|\
-  * This paragraph will be filled, first
+        [q|  * This paragraph will be filled, first
     without any indentation, and then
     with some (including a hanging
     indent).|]
@@ -522,16 +514,14 @@ dedentTests = describe "Dedent" $ do
 
     it "preserves relative indentation" $ do
       -- These strings might not go through the QQ correctly
-      let text = [Interp.text|\
-        def foo():
-            while 1:
-                return foo
-        |]
-          expect = [Interp.text|\
-def foo():
-    while 1:
-        return foo
-|]
+      let text =
+            [q|    def foo():
+                       while 1:
+                           return foo|]
+          expect =
+            [q|def foo():
+                   while 1:
+                       return foo|]
       TW.dedent text `shouldBe` expect
 
     it "ignores blank lines" $
@@ -656,9 +646,9 @@ shortenTests = describe "Shorten" $ do
     checkShorten 6 Nothing "" ""
 
   describe "Whitespace Collapsing" $ do
-    let text = [Interp.text|
-            This is a  paragraph that  already has
-            line breaks and \t tabs too.|]
+    let text =
+          [q|This is a  paragraph that  already has
+            line breaks and 	 tabs too.|]
 
     it "collapses multiline strings" $ do
 
