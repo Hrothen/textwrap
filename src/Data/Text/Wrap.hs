@@ -258,7 +258,8 @@ fillWith cfg text filler = T.intercalate filler <$> wrap cfg text
 
 -- | Truncates input to no more than 'width' characters
 shorten :: WrapperConfig -> Text -> Either WrapError Text
-shorten = undefined
+shorten cfg = let shortenConfig = cfg{maxLines = Just 1}
+               in fill shortenConfig . T.intercalate " " . T.words
 
 
 -- | Remove common leading whitespace from all lines
