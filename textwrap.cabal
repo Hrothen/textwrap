@@ -26,7 +26,7 @@ library
 test-suite textwrap-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
-  main-is:             Spec.hs
+  main-is:             external/Spec.hs
   build-depends:       base,
                        textwrap,
                        text,
