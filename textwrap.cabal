@@ -7,7 +7,7 @@ license:             BSD3
 license-file:        LICENSE
 author:              Leif Grele
 maintainer:          lgrele+textwrap@gmail.com
-copyright:           2016 Leif Grele
+copyright:           2016-2017 Leif Grele
 category:            Data, Text
 build-type:          Simple
 -- extra-source-files:
