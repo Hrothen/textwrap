@@ -7,6 +7,7 @@ module Data.Text.Wrap(
     , defaultConfig
     , wrap
     , fill
+    , fillWith
     , shorten
     , dedent
     , dedentWithLocale
@@ -245,9 +246,14 @@ wrap cfg txt = validateConfig cfg >>
     catTokens = T.concat . reverse
 
 
--- | Like wrap, but concatinates lines and adds newlines
+-- | Like wrap, but concatenates lines and adds newlines
 fill :: WrapperConfig -> Text -> Either WrapError Text
-fill = undefined
+fill cfg text = fillWith cfg text "\n"
+
+
+-- | Like wrap, but concatenates lines with the given separator
+fillWith :: WrapperConfig -> Text -> Text -> Either WrapError Text
+fillWith cfg text filler = T.intercalate filler <$> wrap cfg text
 
 
 -- | Truncates input to no more than 'width' characters
