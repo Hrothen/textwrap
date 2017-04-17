@@ -1,6 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MultiWayIf #-}
+-- |
+-- Module      : Data.Text.Wrap
+-- Copyright   : (c) 2016, 2017 Leif Grele
+-- License     : BSD3
+-- Maintainer  : lgrele+textwrap@gmail.com
+-- Stability   : experimental
+-- Portability : GHC
+--
+-- A collection of helpful functions for wrapping and formatting text.
+--
 module Data.Text.Wrap(
       WrapError(..)
     , WrapperConfig(..)
@@ -32,7 +42,7 @@ import Data.Text.Wrap.Internal.Tokens(collect)
 
 
 -- | A type representing the possible errors produced by
--- | running one of the wrapping functions with invalid inputs
+--   running one of the wrapping functions with invalid inputs.
 data WrapError = InvalidWidth
                | InvalidTabSize
                | IndentTooLong
@@ -41,25 +51,25 @@ data WrapError = InvalidWidth
   deriving (Show, Eq)
 
 
--- | A collection of config information
+-- | A collection of config information.
 data WrapperConfig =
-  WrapperConfig { width              :: Int -- ^ Maximum length of a wrapped line
-                , expandTabs         :: Bool -- ^ If true, all tabs will be replaced with spaces
-                , tabsize            :: Int -- ^ Number of spaces to use for a tab if 'expandTabs' is true
-                , useTabStops        :: Bool -- ^ If true, aligns tabs on nearest multiple of tabsize
-                , replaceWhitespace  :: Bool -- ^ Replace all whitespace with spaces before wrapping
-                , dropWhitespace     :: Bool -- ^ Drop whitespace around lines
-                , initialIndent      :: Text -- ^ Text prepended to the first line
-                , subsequentIndent   :: Text -- ^ Text prepended to lines besides the first
-                , fixSentenceEndings :: Bool -- ^ Attempt to ensure sentences end in two spaces
-                , breakLongWords     :: Bool -- ^ Put words longer than width on multiple lines
-                , breakOnHyphens     :: Bool -- ^ Break on hyphens as well as spaces
-                , maxLines           :: Maybe Int -- ^ If not 'Nothing', truncate to this many lines
-                , placeholder        :: Text -- ^ Text placed after truncated text
-                , locale             :: LocaleName -- ^ Locale of the text, defaults to current locale
+  WrapperConfig { width              :: Int -- ^ Maximum length of a wrapped line.
+                , expandTabs         :: Bool -- ^ If true, all tabs will be replaced with spaces.
+                , tabsize            :: Int -- ^ Number of spaces to use for a tab if 'expandTabs' is true.
+                , useTabStops        :: Bool -- ^ If true, aligns tabs on nearest multiple of tabsize.
+                , replaceWhitespace  :: Bool -- ^ Replace all whitespace with spaces before wrapping.
+                , dropWhitespace     :: Bool -- ^ Drop whitespace around lines.
+                , initialIndent      :: Text -- ^ Text prepended to the first line.
+                , subsequentIndent   :: Text -- ^ Text prepended to lines besides the first.
+                , fixSentenceEndings :: Bool -- ^ Attempt to ensure sentences end in two spaces.
+                , breakLongWords     :: Bool -- ^ Put words longer than width on multiple lines.
+                , breakOnHyphens     :: Bool -- ^ Break on hyphens as well as spaces.
+                , maxLines           :: Maybe Int -- ^ If not 'Nothing', truncate to this many lines.
+                , placeholder        :: Text -- ^ Text placed after truncated text.
+                , locale             :: LocaleName -- ^ Locale of the text, defaults to current locale.
                 }
 
--- | Default config settings
+-- | Default config settings.
 defaultConfig :: WrapperConfig
 defaultConfig = WrapperConfig { width = 70
                               , expandTabs = True
@@ -79,6 +89,7 @@ defaultConfig = WrapperConfig { width = 70
 
 
 type TokenList = [Text]
+
 
 validateConfig :: WrapperConfig -> Either WrapError ()
 validateConfig cfg
@@ -100,8 +111,9 @@ validateConfig cfg
     ilen = T.length (T.stripEnd ii)
     slen = T.length (T.stripEnd si)
 
+
 -- | Wraps the input text, returning a list of lines no more than 'width'
--- | characters long
+--   characters long.
 wrap :: WrapperConfig -> Text -> Either WrapError [Text]
 wrap _ "" = Right []
 wrap cfg txt = validateConfig cfg >>
@@ -246,31 +258,35 @@ wrap cfg txt = validateConfig cfg >>
     catTokens = T.concat . reverse
 
 
--- | Like wrap, but concatenates lines and adds newlines
+-- | Like wrap, but concatenates lines and adds newlines.
 fill :: WrapperConfig -> Text -> Either WrapError Text
 fill cfg text = fillWith cfg text "\n"
 
 
--- | Like wrap, but concatenates lines with the given separator
+-- | Like wrap, but concatenates lines with the given separator.
+--
+-- > fill cfg text = fillWith cfg text "\n"
+--
 fillWith :: WrapperConfig -> Text -> Text -> Either WrapError Text
 fillWith cfg text filler = T.intercalate filler <$> wrap cfg text
 
 
--- | Truncates input to no more than 'width' characters
+-- | Truncates input to no more than 'width' characters.
+--   All whitespace will be replaced with single spaces.
 shorten :: WrapperConfig -> Text -> Either WrapError Text
 shorten cfg = let shortenConfig = cfg{maxLines = Just 1}
                in fill shortenConfig . T.intercalate " " . T.words
 
 
--- | Remove common leading whitespace from all lines
--- | Lines containing only whitespace are ignored
+-- | Remove common leading whitespace from all lines.
+--   Lines containing only whitespace are ignored.
 dedent :: Text -> Text
 dedent = dedentWithLocale Current
 
 
--- | Remove common leading whitespace from all lines
--- | Lines containing only whitespace are ignored
--- | Finds line breaks based on the given locale
+-- | Remove common leading whitespace from all lines.
+--   Lines containing only whitespace are ignored.
+--   Finds line breaks based on the given locale.
 dedentWithLocale :: LocaleName -> Text -> Text
 dedentWithLocale locale text = mconcat $ fmap applyMargin lns
   where
@@ -309,18 +325,25 @@ allWhitespace :: Text -> Bool
 allWhitespace = not . T.any (not . isSpace)
 
 
--- | Add 'prefix' to all lines matching the given predicate
--- | If no predicate is supplied, adds 'prefix' to all lines that don't consist
--- | solely of whitespace
-indent :: Maybe (Text -> Bool) -> Text -> Text -> Text
+-- | Add prefix to all lines matching the given predicate.
+--   If no predicate is supplied, adds prefix to all lines that don't consist
+--   solely of whitespace.
+indent :: Maybe (Text -> Bool) -- ^ predicate
+       -> Text -- ^ prefix
+       -> Text -- ^ text
+       -> Text
 indent = indentWithLocale Current
 
 
--- | Add 'prefix' to all lines matching the given predicate
--- | If no predicate is supplied, adds 'prefix' to all lines that don't consist
--- | solely of whitespace
--- | Finds line breaks based on the given locale
-indentWithLocale :: LocaleName -> Maybe (Text -> Bool) -> Text -> Text -> Text
+-- | Add prefix to all lines matching the given predicate.
+--   If no predicate is supplied, adds prefix to all lines that don't consist
+--   solely of whitespace.
+--   Finds line breaks based on the given locale.
+indentWithLocale :: LocaleName -- ^ locale
+                 -> Maybe (Text -> Bool) -- ^ predicate
+                 -> Text -- ^ prefix
+                 -> Text -- ^ text
+                 -> Text
 indentWithLocale locale pred prefix = mconcat . fmap transform . linebreaks locale
   where
     transform :: Text -> Text
