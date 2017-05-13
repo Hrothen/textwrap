@@ -37,7 +37,11 @@ resolver: lts-8.11
 # non-dependency (i.e. a user package), and its test suites and benchmarks
 # will not be run. This is useful for tweaking upstream packages.
 packages:
-- '.'
+  - location: .
+  - location:
+      git: https://github.com/bos/text-icu.git
+      commit: af055bd2d3d963cc98ab7464ad1bbb4593774386
+    extra-dep: true
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps: []
