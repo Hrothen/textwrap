@@ -16,7 +16,7 @@
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
 # resolver: lts-6.12
-resolver: lts-8.11
+resolver: lts-8.15
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -40,7 +40,7 @@ packages:
   - location: .
   - location:
       git: https://github.com/bos/text-icu.git
-      commit: af055bd2d3d963cc98ab7464ad1bbb4593774386
+      commit: 5ab84d8106c06fbabb87a0f173faa6049775a148
     extra-dep: true
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
